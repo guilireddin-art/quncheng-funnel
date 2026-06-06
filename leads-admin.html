@@ -382,23 +382,22 @@
 
     function renderStats() {
       const today = new Date();
+      const scope = scopedLeads();
       document.getElementById('stat-filtered').textContent = filteredLeads().length;
-      document.getElementById('stat-today').textContent = leads.filter(x => isSameDay(x.created_at, today)).length;
-      document.getElementById('stat-new').textContent = leads.filter(x => x.status === 'new').length;
-      document.getElementById('stat-contacted').textContent = leads.filter(x => x.status === 'contacted').length;
-      document.getElementById('stat-line-added').textContent = leads.filter(x => x.status === 'line_added').length;
-      document.getElementById('stat-approved').textContent = leads.filter(x => x.status === 'approved').length;
-      document.getElementById('stat-invalid').textContent = leads.filter(x => x.status === 'invalid').length;
+      document.getElementById('stat-today').textContent = scope.filter(x => isSameDay(x.created_at, today)).length;
+      document.getElementById('stat-new').textContent = scope.filter(x => x.status === 'new').length;
+      document.getElementById('stat-contacted').textContent = scope.filter(x => x.status === 'contacted').length;
+      document.getElementById('stat-line-added').textContent = scope.filter(x => x.status === 'line_added').length;
+      document.getElementById('stat-approved').textContent = scope.filter(x => x.status === 'approved').length;
+      document.getElementById('stat-invalid').textContent = scope.filter(x => x.status === 'invalid').length;
     }
 
-    function filteredLeads() {
+    function scopedLeads() {
       const q = document.getElementById('search').value.trim().toLowerCase();
-      const status = document.getElementById('status-filter').value;
       const page = document.getElementById('page-filter').value;
       const from = document.getElementById('date-from').value;
       const to = document.getElementById('date-to').value;
       return leads.filter(lead => {
-        if (status && lead.status !== status) return false;
         if (page && (lead.page_slug || 'main') !== page) return false;
         if (from && new Date(lead.created_at) < new Date(from + 'T00:00:00')) return false;
         if (to && new Date(lead.created_at) > new Date(to + 'T23:59:59')) return false;
@@ -406,6 +405,11 @@
         return [lead.name, lead.phone, lead.line_id, lead.city, lead.id_number]
           .some(value => String(value || '').toLowerCase().includes(q));
       });
+    }
+
+    function filteredLeads() {
+      const status = document.getElementById('status-filter').value;
+      return scopedLeads().filter(lead => !status || lead.status === status);
     }
 
     function setQuickDate(days, button) {

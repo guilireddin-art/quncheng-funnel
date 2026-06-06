@@ -27,7 +27,23 @@
     document.body.appendChild(modal);
     modal.querySelector(".line-modal-close").addEventListener("click",closeLineModal);
     modal.querySelector(".line-modal-later").addEventListener("click",closeLineModal);
-    modal.querySelector("#line-modal-link")?.addEventListener("click",()=>window.trackPageEvent?.("Contact",{channel:"LINE"}));
+    modal.querySelector("#line-modal-link")?.addEventListener("click",markLineClicked);
+  }
+  async function markLineClicked(){
+    window.trackPageEvent?.("Contact",{channel:"LINE"});
+    if(!window.LAST_LEAD_ID)return;
+    try{
+      await originalFetch("https://ijzywhrnhvldkjdwfdyy.supabase.co/rest/v1/rpc/mark_line_clicked",{
+        method:"POST",
+        headers:{
+          apikey:"sb_publishable_6aY1-VEvimuV1K4FzURO2Q_inVt-ZKL",
+          Authorization:"Bearer sb_publishable_6aY1-VEvimuV1K4FzURO2Q_inVt-ZKL",
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({target_lead_id:window.LAST_LEAD_ID,target_slug:window.PAGE_SLUG||"main"}),
+        keepalive:true
+      });
+    }catch(_){}
   }
   function closeLineModal(){document.getElementById("line-success-modal")?.remove()}
   window.showLineSuccessModal=showLineModal;
