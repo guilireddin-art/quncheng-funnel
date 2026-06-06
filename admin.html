@@ -13,7 +13,7 @@
 <main>
   <section id="login" class="card login"><h2>主管理員登入</h2><label>密碼</label><input id="password" type="password"><div style="height:12px"></div><button onclick="login()">登入</button><p id="login-msg" class="notice"></p></section>
   <section id="app" class="hidden">
-    <div class="card toolbar"><div><h2 style="margin:0">Page 管理</h2><div class="notice">新增或修改后，前台会立即读取最新配置。</div></div><div class="actions"><a class="button secondary" href="leads-admin.html" target="_blank">全部客户资料</a><button onclick="openEditor()">新增 Page</button></div></div>
+    <div class="card toolbar"><div><h2 style="margin:0">Page 管理</h2><div class="notice">主账号可管理 Page，并进入客户统计后台查看全部投手的数据。</div></div><div class="actions"><a class="button" href="leads-admin.html">客户统计与订单</a><button onclick="openEditor()">新增 Page</button></div></div>
     <section id="editor" class="card hidden"><h2 id="editor-title">新增 Page</h2><div class="grid">
       <div class="field"><label>Page 路径代号 *</label><input id="slug" placeholder="page1"></div>
       <div class="field"><label>公司名称 *</label><input id="company" value="富恩資產管理有限公司"></div>

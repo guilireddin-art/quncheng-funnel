@@ -30,7 +30,7 @@
     .hidden { display: none !important; }
     .notice { color: #7c899d; font-size: 13px; line-height: 1.6; }
     .error { color: #b42318; }
-    .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stats { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; margin-bottom: 24px; }
     .stat { --accent:#4f6cff; position: relative; background: #fff; border: 1px solid #dce2ea; border-radius: 8px; padding: 20px 18px 18px 24px; min-height: 116px; overflow: hidden; }
     .stat::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--accent); }
     .stat b { display: block; font-size: 34px; line-height: 1; color: #101a2d; margin-bottom: 10px; }
@@ -124,6 +124,7 @@
     <h1>富恩資產管理有限公司交單系統 <span class="header-sub">客戶申請管理</span></h1>
     <div id="user-bar" class="hidden">
       <span id="user-email"></span>
+      <a href="admin.html" style="color:#fff;text-decoration:none">Page 管理</a>
       <button class="secondary" onclick="signOut()">登出</button>
     </div>
   </header>
@@ -149,6 +150,7 @@
         <div class="stat" style="--accent:#dd8700"><b id="stat-new">0</b><span>新客戶</span></div>
         <div class="stat" style="--accent:#8a55ed"><b id="stat-contacted">0</b><span>已聯繫</span></div>
         <div class="stat" style="--accent:#08a56a"><b id="stat-line-added">0</b><span>已添加 LINE</span></div>
+        <div class="stat" style="--accent:#6741c7"><b id="stat-approved">0</b><span>已成交</span></div>
         <div class="stat" style="--accent:#dc3030"><b id="stat-invalid">0</b><span>無效</span></div>
       </div>
 
@@ -177,6 +179,11 @@
               <option value="approved">已成交</option>
               <option value="rejected">未成交</option>
               <option value="invalid">無效</option>
+            </select>
+          </div>
+          <div class="status-field">
+            <select id="page-filter" onchange="renderLeads()">
+              <option value="">全部 Page</option>
             </select>
           </div>
           <button id="refresh-btn" onclick="loadLeads()">刷新訂單</button>
@@ -355,6 +362,13 @@
         return;
       }
       leads = data || [];
+      const pageFilter = document.getElementById('page-filter');
+      const selectedPage = pageFilter.value;
+      const pageSlugs = [...new Set(leads.map(lead => lead.page_slug || 'main'))].sort();
+      pageFilter.innerHTML = '<option value="">全部 Page</option>' + pageSlugs.map(slug =>
+        `<option value="${escapeHTML(slug)}">${escapeHTML(slug)}</option>`
+      ).join('');
+      pageFilter.value = pageSlugs.includes(selectedPage) ? selectedPage : '';
       markDuplicateLeads();
       selectedLeadIds = new Set([...selectedLeadIds].filter(id => leads.some(lead => lead.id === id)));
       renderStats();
@@ -373,16 +387,19 @@
       document.getElementById('stat-new').textContent = leads.filter(x => x.status === 'new').length;
       document.getElementById('stat-contacted').textContent = leads.filter(x => x.status === 'contacted').length;
       document.getElementById('stat-line-added').textContent = leads.filter(x => x.status === 'line_added').length;
+      document.getElementById('stat-approved').textContent = leads.filter(x => x.status === 'approved').length;
       document.getElementById('stat-invalid').textContent = leads.filter(x => x.status === 'invalid').length;
     }
 
     function filteredLeads() {
       const q = document.getElementById('search').value.trim().toLowerCase();
       const status = document.getElementById('status-filter').value;
+      const page = document.getElementById('page-filter').value;
       const from = document.getElementById('date-from').value;
       const to = document.getElementById('date-to').value;
       return leads.filter(lead => {
         if (status && lead.status !== status) return false;
+        if (page && (lead.page_slug || 'main') !== page) return false;
         if (from && new Date(lead.created_at) < new Date(from + 'T00:00:00')) return false;
         if (to && new Date(lead.created_at) > new Date(to + 'T23:59:59')) return false;
         if (!q) return true;
@@ -429,6 +446,7 @@
                 : '<span class="tag tag-fresh">新客戶</span>'}
               ${lead.status === 'new' ? '' : `<span class="tag tag-${escapeHTML(lead.status)}">${escapeHTML(statusLabels[lead.status] || lead.status)}</span>`}
               ${lead.line_clicked ? '<span class="tag tag-line">已點 LINE</span>' : ''}
+              <span class="tag tag-contacted">Page：${escapeHTML(lead.page_slug || 'main')}</span>
             </div>
             <div class="lead-meta">
               <span>手機 <strong>${escapeHTML(lead.phone)}</strong></span>
@@ -478,6 +496,7 @@
           ${detailItem('外幣帳戶', lead.q4_foreign_currency_account)}
           ${detailItem('LINE 點擊', lead.line_clicked ? '已點擊加入 LINE' : '尚未點擊')}
           ${detailItem('來源網址', lead.source_url)}
+          ${detailItem('來源 Page', lead.page_slug || 'main')}
         </div>
         <div class="detail-section">
           <h3>提供甲方的客戶資料</h3>
@@ -538,6 +557,7 @@
         `銀行警示戶：${bankWarningValue(lead.q2_bank_status)}`,
         `個人外幣帳戶：${foreignAccountValue(lead.q4_foreign_currency_account)}`,
         `信貸/房貸/汽貸/機車：${existingLoanValue(lead.q1_existing_loan)}`
+        ,`來源 Page：${lead.page_slug || 'main'}`
       ].join('\n');
     }
 
