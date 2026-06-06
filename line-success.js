@@ -20,13 +20,14 @@
       <div class="line-modal-check">✓</div>
       <h2 id="line-modal-title">申請資料已成功送出</h2>
       <p>最後一步，請加入 ${config.company_name||"富恩資產管理有限公司"} LINE，並傳送「我要申請」，方便專員核對您的資料與說明後續。</p>
-      ${lineUrl?`<a class="line-modal-btn" href="${lineUrl}" target="_blank" rel="noopener">加入 LINE 完成後續申請</a>`:`<span class="line-modal-btn disabled" aria-disabled="true">LINE 連結設定中</span>`}
+      ${lineUrl?`<a class="line-modal-btn" id="line-modal-link" href="${lineUrl}" target="_blank" rel="noopener">加入 LINE 完成後續申請</a>`:`<span class="line-modal-btn disabled" aria-disabled="true">LINE 連結設定中</span>`}
       <div class="line-modal-hint">${lineId?`LINE ID：${lineId}`:"表單已成功收到，LINE 連結設定完成後即可加入。"}</div>
       <button class="line-modal-later" type="button">關閉</button>
     </section>`;
     document.body.appendChild(modal);
     modal.querySelector(".line-modal-close").addEventListener("click",closeLineModal);
     modal.querySelector(".line-modal-later").addEventListener("click",closeLineModal);
+    modal.querySelector("#line-modal-link")?.addEventListener("click",()=>window.trackPageEvent?.("Contact",{channel:"LINE"}));
   }
   function closeLineModal(){document.getElementById("line-success-modal")?.remove()}
   window.showLineSuccessModal=showLineModal;

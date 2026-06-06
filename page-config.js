@@ -18,6 +18,7 @@
   };
 
   window.PAGE_CONFIG_READY = loadConfig();
+  window.trackPageEvent = trackPageEvent;
 
   async function loadConfig() {
     let config = defaults;
@@ -72,7 +73,12 @@
         document.head.appendChild(script);
       }
       window.fbq("init", id);
-      window.fbq("track", "PageView");
     });
+    if (cleanIds.filter(Boolean).length) window.fbq("track", "PageView");
+  }
+
+  function trackPageEvent(eventName, params) {
+    if (!window.fbq) return;
+    window.fbq("track", eventName, { page_slug: slug, ...(params || {}) });
   }
 })();
