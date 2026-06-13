@@ -22,6 +22,52 @@
       <div class="field"><label>LINE ID</label><input id="line-id" placeholder="@xxxx"></div>
       <div class="field"><label>LINE 链接</label><input id="line-url" placeholder="https://line.me/..."></div>
       <div class="field full"><label>Facebook Pixel ID（多个用逗号分隔）</label><input id="pixels" placeholder="123456789, 987654321"></div>
+      <div class="field full"><label>TikTok Pixel ID（多个用逗号分隔）</label><input id="tiktok-pixels" placeholder="例如：CXXXXXXXXXXXXXXXXX"></div>
+      <div class="field"><label>状态</label><select id="active"><option value="true">启用</option><option value="false">停用</option></select></div>
+    </div><div style="height:15px"></div><div class="actions"><button onclick="savePage()">保存 Page</button><button class="secondary" onclick="closeEditor()">取消</button></div><p id="save-msg" class="notice"></p></section>
+    <section class="card"><div id="pages" class="pages"></div><p id="empty" class="notice">尚未建立 Page。</p></section>
+  </section>
+</main>
+<script>
+const URL_='https://ijzywhrnhvldkjdwfdyy.supabase.co',KEY='sb_publishable_6aY1-VEvimuV1K4FzURO2Q_inVt-ZKL',MASTER='allanfetzer379@gmail.com';
+const db=supabase.createClient(URL_,KEY);let pages=[],editingId=null;
+const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+async function login(){const {error}=await db.auth.signInWithPassword({email:MASTER,password:$('password').value});$('login-msg').textContent=error?'密码错误': '登录成功';if(!error)start()}
+async function start(){const {data}=await db.auth.getUser();if(data.user?.email!==MASTER)return;$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');loadPages()}
+async function logout(){await db.auth.signOut();location.reload()}
+async function loadPages(){const {data,error}=await db.rpc('get_master_pages');if(error)return alert(error.message);pages=data||[];render()}
+function render(){$('empty').classList.toggle('hidden',pages.length>0);$('pages').innerHTML=pages.map(p=>`<article class="page-row"><div><h3>${esc(p.slug)} <span class="tag ${p.active?'':'off'}">${p.active?'启用':'停用'}</span></h3><div class="meta"><span>公司：${esc(p.company_name)}</span><span>投手：${esc(p.operator_note||'未备注')}</span><span>LINE：${esc(p.line_id||'未设置')}</span><span>FB Pixel：${esc((p.pixel_ids||[]).join(', ')||'未设置')}</span><span>TikTok Pixel：${esc((p.tiktok_pixel_ids||[]).join(', ')||'未设置')}</span></div></div><div class="actions"><a class="button secondary" target="_blank" href="index.html?page=${encodeURIComponent(p.slug)}">打开页面</a><a class="button secondary" target="_blank" href="page-admin.html?page=${encodeURIComponent(p.slug)}">Page 后台</a><button onclick="editPage('${p.id}')">编辑</button>${p.slug==='main'?'':`<button class="danger" onclick="removePage('${p.id}','${esc(p.slug)}')">删除</button>`}</div></article>`).join('')}
+function openEditor(p={}){editingId=p.id||null;$('editor-title').textContent=editingId?'编辑 Page':'新增 Page';$('slug').value=p.slug||'';$('slug').disabled=!!editingId;$('company').value=p.company_name||'富恩資產管理有限公司';$('operator-note').value=p.operator_note||'';$('page-password').value=p.current_password||'';$('line-id').value=p.line_id||'';$('line-url').value=p.line_url||'';$('pixels').value=(p.pixel_ids||[]).join(', ');$('tiktok-pixels').value=(p.tiktok_pixel_ids||[]).join(', ');$('active').value=String(p.active??true);$('editor').classList.remove('hidden');scrollTo({top:0,behavior:'smooth'})}
+function closeEditor(){$('editor').classList.add('hidden');editingId=null}
+function editPage(id){openEditor(pages.find(p=>p.id===id))}
+async function savePage(){const slug=$('slug').value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'');if(!slug)return $('save-msg').textContent='请填写 Page 路径代号';const password=$('page-password').value.trim();if(!password)return $('save-msg').textContent='请填写 Page 后台密码';const payload={slug,company_name:$('company').value.trim(),operator_note:$('operator-note').value.trim(),line_id:$('line-id').value.trim(),line_url:$('line-url').value.trim(),pixel_ids:$('pixels').value.split(/[\s,]+/).filter(Boolean),tiktok_pixel_ids:$('tiktok-pixels').value.split(/[\s,]+/).filter(Boolean),active:$('active').value==='true',updated_at:new Date().toISOString()};const q=editingId?db.from('pages').update(payload).eq('id',editingId):db.from('pages').insert(payload);const {error}=await q;if(error)return $('save-msg').textContent=error.message;const result=await db.rpc('set_page_password',{target_slug:slug,new_password:password});if(result.error)return $('save-msg').textContent='Page 已保存，但密码设置失败：'+result.error.message;closeEditor();loadPages()}
+async function removePage(id,slug){if(!confirm(`确定删除 ${slug}？已有客户资料会保留。`))return;const {error}=await db.from('pages').delete().eq('id',id);if(error)alert(error.message);else loadPages()}
+start();
+</script></body></html>
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>富恩主後台｜Page 管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#eef3f8;color:#17233c;font-family:"Microsoft JhengHei",sans-serif}header{background:#102a43;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}header h1{font-size:20px;margin:0}main{max-width:1250px;margin:auto;padding:24px}.card{background:#fff;border:1px solid #dce5ee;border-radius:12px;padding:20px;margin-bottom:18px;box-shadow:0 4px 18px rgba(30,55,80,.06)}.login{max-width:420px;margin:50px auto}.hidden{display:none!important}label{display:block;font-size:13px;font-weight:800;margin:0 0 5px}input,textarea,select{width:100%;border:1px solid #d5e0ea;border-radius:7px;padding:9px;font:inherit}textarea{min-height:70px}button,.button{border:0;border-radius:7px;padding:9px 13px;background:#1677c8;color:#fff;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex}.secondary{background:#fff;color:#4e6074;border:1px solid #d5e0ea}.danger{background:#c83a3a}.toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.field.full{grid-column:1/-1}.pages{display:grid;gap:13px}.page-row{border:1px solid #dce5ee;border-radius:10px;padding:16px;display:grid;grid-template-columns:1fr auto;gap:14px}.page-row h3{margin:0 0 7px}.meta{display:flex;gap:12px;flex-wrap:wrap;color:#65768a;font-size:13px}.actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.tag{padding:3px 8px;border-radius:99px;background:#e8f6ed;color:#078447;font-size:12px;font-weight:800}.off{background:#f2e7e7;color:#a13d3d}.notice{font-size:13px;color:#6b7c90}.error{color:#ba3030}@media(max-width:760px){main{padding:12px}.grid{grid-template-columns:1fr}.field.full{grid-column:auto}.page-row{grid-template-columns:1fr}.toolbar{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<header><h1>富恩資產管理有限公司｜主後台</h1><button id="logout" class="secondary hidden" onclick="logout()">登出</button></header>
+<main>
+  <section id="login" class="card login"><h2>主管理員登入</h2><label>密碼</label><input id="password" type="password"><div style="height:12px"></div><button onclick="login()">登入</button><p id="login-msg" class="notice"></p></section>
+  <section id="app" class="hidden">
+    <div class="card toolbar"><div><h2 style="margin:0">Page 管理</h2><div class="notice">主账号可管理 Page，并进入客户统计后台查看全部投手的数据。</div></div><div class="actions"><a class="button" href="leads-admin.html">客户统计与订单</a><button onclick="openEditor()">新增 Page</button></div></div>
+    <section id="editor" class="card hidden"><h2 id="editor-title">新增 Page</h2><div class="grid">
+      <div class="field"><label>Page 路径代号 *</label><input id="slug" placeholder="page1"></div>
+      <div class="field"><label>公司名称 *</label><input id="company" value="富恩資產管理有限公司"></div>
+      <div class="field"><label>投手备注</label><input id="operator-note" placeholder="例如：小王"></div>
+      <div class="field"><label>Page 后台当前密码</label><input id="page-password" type="text" placeholder="输入此 Page 的后台密码"></div>
+      <div class="field"><label>LINE ID</label><input id="line-id" placeholder="@xxxx"></div>
+      <div class="field"><label>LINE 链接</label><input id="line-url" placeholder="https://line.me/..."></div>
+      <div class="field full"><label>Facebook Pixel ID（多个用逗号分隔）</label><input id="pixels" placeholder="123456789, 987654321"></div>
       <div class="field"><label>状态</label><select id="active"><option value="true">启用</option><option value="false">停用</option></select></div>
     </div><div style="height:15px"></div><div class="actions"><button onclick="savePage()">保存 Page</button><button class="secondary" onclick="closeEditor()">取消</button></div><p id="save-msg" class="notice"></p></section>
     <section class="card"><div id="pages" class="pages"></div><p id="empty" class="notice">尚未建立 Page。</p></section>
