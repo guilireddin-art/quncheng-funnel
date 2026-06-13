@@ -31,6 +31,7 @@
   }
   async function markLineClicked(){
     window.trackPageEvent?.("Contact",{channel:"LINE"});
+    window.trackTikTokEvent?.("Contact",{channel:"LINE"});
     if(!window.LAST_LEAD_ID)return;
     try{
       await originalFetch("https://ijzywhrnhvldkjdwfdyy.supabase.co/rest/v1/rpc/mark_line_clicked",{
