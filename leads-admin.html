@@ -69,6 +69,8 @@
     .tag-line { background:#f3e4ff; color:#9637b4; }
     .tag-fresh { background:#dcf8eb; color:#087b42; }
     .tag-duplicate { background:#f9e1ff; color:#a02cb4; border:1px solid #ecaaf5; }
+    .tag-fb { background:#e7f0ff; color:#1769d2; }
+    .tag-tiktok { background:#171717; color:#fff; }
     .lead-meta { display:flex; align-items:center; gap:20px; white-space:nowrap; overflow:hidden; color:#526178; font-size:13px; }
     .lead-meta span { overflow:hidden; text-overflow:ellipsis; }
     .lead-meta strong { color:#19263a; }
@@ -433,6 +435,20 @@
       document.querySelectorAll('.quick-dates button').forEach(btn => btn.classList.remove('active'));
     }
 
+    function trafficSource(lead) {
+      const saved = String(lead.traffic_source || '');
+      if (saved === 'FB' || saved === 'TikTok') return saved;
+      const url = String(lead.source_url || '').toLowerCase();
+      if (url.includes('fbclid=') || /utm_source=(facebook|fb|meta)/.test(url)) return 'FB';
+      if (url.includes('ttclid=') || /utm_source=(tiktok|tk)/.test(url)) return 'TikTok';
+      return '';
+    }
+
+    function trafficSourceTag(lead) {
+      const source = trafficSource(lead);
+      return source ? `<span class="tag ${source === 'FB' ? 'tag-fb' : 'tag-tiktok'}">${source}</span>` : '';
+    }
+
     function renderLeads() {
       const list = document.getElementById('lead-list');
       const data = filteredLeads();
@@ -450,6 +466,7 @@
                 : '<span class="tag tag-fresh">新客戶</span>'}
               ${lead.status === 'new' ? '' : `<span class="tag tag-${escapeHTML(lead.status)}">${escapeHTML(statusLabels[lead.status] || lead.status)}</span>`}
               ${lead.line_clicked ? '<span class="tag tag-line">已點 LINE</span>' : ''}
+              ${trafficSourceTag(lead)}
               <span class="tag tag-contacted">Page：${escapeHTML(lead.page_slug || 'main')}</span>
             </div>
             <div class="lead-meta">
@@ -499,6 +516,7 @@
           ${detailItem('帳戶狀態', lead.q2_bank_status)}
           ${detailItem('外幣帳戶', lead.q4_foreign_currency_account)}
           ${detailItem('LINE 點擊', lead.line_clicked ? '已點擊加入 LINE' : '尚未點擊')}
+          ${detailItem('廣告來源', trafficSource(lead) || '未識別')}
           ${detailItem('來源網址', lead.source_url)}
           ${detailItem('來源 Page', lead.page_slug || 'main')}
         </div>

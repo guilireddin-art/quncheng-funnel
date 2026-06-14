@@ -12,6 +12,9 @@
 
   window.PAGE_SLUG = slug;
   localStorage.setItem("active_page_slug", slug);
+  const detectedTrafficSource = detectTrafficSource();
+  if (detectedTrafficSource) rememberTrafficSource(detectedTrafficSource);
+  window.TRAFFIC_SOURCE = detectedTrafficSource || rememberedTrafficSource();
 
   const defaults = {
     slug,
@@ -115,4 +118,24 @@
   }
 
   window.trackTikTokEvent = trackTikTokEvent;
+
+  function detectTrafficSource() {
+    const source = String(params.get("utm_source") || params.get("source") || "").toLowerCase();
+    if (params.get("fbclid") || /facebook|meta|(^|[^a-z])fb([^a-z]|$)/.test(source)) return "FB";
+    if (params.get("ttclid") || /tiktok|tik_tok|(^|[^a-z])tk([^a-z]|$)/.test(source)) return "TikTok";
+    return "";
+  }
+
+  function rememberTrafficSource(source) {
+    localStorage.setItem(`traffic_source_${slug}`, JSON.stringify({ source, saved_at: Date.now() }));
+  }
+
+  function rememberedTrafficSource() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`traffic_source_${slug}`) || "null");
+      return saved && Date.now() - saved.saved_at < 86400000 ? saved.source : "";
+    } catch (_) {
+      return "";
+    }
+  }
 })();
