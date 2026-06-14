@@ -1,4 +1,9 @@
 (function () {
+  document.documentElement.classList.add("page-config-loading");
+  const loadingStyle = document.createElement("style");
+  loadingStyle.textContent = ".page-config-loading body{visibility:hidden}";
+  document.head.appendChild(loadingStyle);
+
   const SUPABASE_URL = "https://ijzywhrnhvldkjdwfdyy.supabase.co";
   const SUPABASE_KEY = "sb_publishable_6aY1-VEvimuV1K4FzURO2Q_inVt-ZKL";
   const params = new URLSearchParams(location.search);
@@ -18,7 +23,10 @@
     active: true
   };
 
-  window.PAGE_CONFIG_READY = loadConfig();
+  window.PAGE_CONFIG_READY = loadConfig().finally(() => {
+    document.documentElement.classList.remove("page-config-loading");
+    loadingStyle.remove();
+  });
   window.trackPageEvent = trackPageEvent;
 
   async function loadConfig() {
