@@ -1,7 +1,7 @@
 (function () {
   document.documentElement.classList.add("page-config-loading");
   const loadingStyle = document.createElement("style");
-  loadingStyle.textContent = ".page-config-loading body{visibility:hidden}";
+  loadingStyle.textContent = ".page-config-loading [data-company-name]{visibility:hidden}";
   document.head.appendChild(loadingStyle);
 
   const SUPABASE_URL = "https://ijzywhrnhvldkjdwfdyy.supabase.co";
