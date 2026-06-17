@@ -16,6 +16,14 @@
 <main>
   <section id="login" class="panel login"><h2>投手後台登入</h2><p id="page-label" class="notice"></p><label>密碼</label><input id="password" type="password" autocomplete="current-password"><div style="height:12px"></div><button id="login-btn" onclick="login()">登入</button><p id="msg" class="notice"></p></section>
   <section id="app" class="hidden">
+    <section id="domain-panel" class="panel hidden" style="padding:18px 22px">
+      <h2 style="margin:0 0 8px;font-size:18px">我的投放链接</h2>
+      <p id="domain-info" class="notice" style="margin:0 0 10px"></p>
+      <div class="actions" style="justify-content:flex-start;max-width:none">
+        <a id="domain-loan-link" class="secondary" target="_blank" href="#">打开表单</a>
+        <button onclick="copyAssignedLink()">复制投放链接</button>
+      </div>
+    </section>
     <div class="stats">
       <div class="stat" style="--accent:#5865f2"><b id="s-filtered">0</b><span>篩選結果</span></div><div class="stat" style="--accent:#3185ff"><b id="s-today">0</b><span>當日新增</span></div><div class="stat" style="--accent:#dd8700"><b id="s-new">0</b><span>新客戶</span></div><div class="stat" style="--accent:#8a55ed"><b id="s-contacted">0</b><span>已聯繫</span></div><div class="stat" style="--accent:#08a56a"><b id="s-line">0</b><span>已添加 LINE</span></div><div class="stat" style="--accent:#6741c7"><b id="s-approved">0</b><span>已成交</span></div><div class="stat" style="--accent:#dc3030"><b id="s-invalid">0</b><span>無效</span></div>
     </div>
@@ -62,6 +70,27 @@ function detectedTrafficSource(r){
   if(url.includes('ttclid=')||/utm_source=(tiktok|tk)/.test(url))return'TikTok';
   return'';
 }
+let assignedPageLink='';
+function normalizeAssignedDomain(v){v=String(v||'').trim().replace(/\/+$/,'');if(v&&!/^https?:\/\//i.test(v))v='https://'+v;return v}
+async function loadAssignedDomain(){
+  try{
+    const {data,error}=await db.from('pages').select('domain_url').eq('slug',slug).limit(1).maybeSingle();
+    if(error)return;
+    const base=normalizeAssignedDomain(data&&data.domain_url)||location.origin;
+    assignedPageLink=`${base}/loan.html?page=${encodeURIComponent(slug)}`;
+    document.getElementById('domain-info').textContent=`主账号分配域名：${base}｜投放链接：${assignedPageLink}`;
+    document.getElementById('domain-loan-link').href=assignedPageLink;
+    document.getElementById('domain-panel').classList.remove('hidden');
+  }catch(_){}
+}
+async function copyAssignedLink(){
+  if(!assignedPageLink)await loadAssignedDomain();
+  if(!assignedPageLink)return;
+  try{await navigator.clipboard.writeText(assignedPageLink)}catch(e){const t=document.createElement('textarea');t.value=assignedPageLink;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}
+  toast('已复制投放链接');
+}
+const originalLoginForDomain=login;
+login=async function(){await originalLoginForDomain();if(!$('app').classList.contains('hidden'))loadAssignedDomain()};
 const originalRender=render;
 render=function(){
   originalRender();
