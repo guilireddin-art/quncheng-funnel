@@ -351,10 +351,7 @@
         refreshBtn.disabled = true;
         refreshBtn.textContent = '刷新中...';
       }
-      const { data, error } = await client
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await fetchAllLeads();
       if (error) {
         alert('讀取名單失敗：' + error.message);
         if (refreshBtn) {
@@ -380,6 +377,24 @@
         refreshBtn.disabled = false;
         refreshBtn.textContent = '刷新訂單';
       }
+    }
+
+    async function fetchAllLeads() {
+      const pageSize = 1000;
+      const allRows = [];
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await client
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        if (error) return { data: allRows, error };
+        const batch = data || [];
+        allRows.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+      return { data: allRows, error: null };
     }
 
     function renderStats() {
