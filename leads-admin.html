@@ -569,7 +569,11 @@
     }
 
     function bankWarningValue(value) {
-      return String(value || '').includes('警示') && !String(value || '').includes('非警示') ? '是' : '否';
+      const text = String(value || '').trim();
+      if (!text) return '否';
+      if (/(非警示|不是警示|不為警示|不屬於警示|警示戶[:：\s]*(否|不是|無|没有|沒有)|銀行是否為警示戶[:：\s]*(否|不是|無|没有|沒有)|^否$|^無$|^没有$|^沒有$)/.test(text)) return '否';
+      if (/(警示戶[:：\s]*(是|有)|銀行是否為警示戶[:：\s]*(是|有)|^是$|^有$)/.test(text)) return '是';
+      return text.includes('警示') ? '是' : '否';
     }
 
     function foreignAccountValue(value) {
