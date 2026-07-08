@@ -578,12 +578,18 @@
 
     function foreignAccountValue(value) {
       const text = String(value || '');
-      return text.includes('是') || text.includes('有外幣') ? '是' : '否';
+      if (!text) return '否';
+      if (/(外幣帳戶[:：\s]*(否|無|没有|沒有|不是)|[:：]\s*(否|無|没有|沒有|不是)|^否$|^無$|^没有$|^沒有$)/.test(text)) return '否';
+      if (/(外幣帳戶[:：\s]*(是|有)|[:：]\s*(是|有)|^是$|^有$|有外幣)/.test(text)) return '是';
+      return '否';
     }
 
     function existingLoanValue(value) {
       const text = String(value || '');
-      return !text || text.includes('無') ? '無' : '有';
+      if (!text) return '無';
+      if (/(信貸[^；\n]*[:：]\s*(否|無|没有|沒有|不是)|房貸[^；\n]*[:：]\s*(否|無|没有|沒有|不是)|汽貸[^；\n]*[:：]\s*(否|無|没有|沒有|不是)|機貸[^；\n]*[:：]\s*(否|無|没有|沒有|不是)|^否$|^無$|^没有$|^沒有$)/.test(text)) return '無';
+      if (/(信貸[^；\n]*[:：]\s*(是|有)|房貸[^；\n]*[:：]\s*(是|有)|汽貸[^；\n]*[:：]\s*(是|有)|機貸[^；\n]*[:：]\s*(是|有)|^是$|^有$)/.test(text)) return '有';
+      return text.includes('有') && !text.includes('是否有') ? '有' : '無';
     }
 
     function clientCopyText(lead) {
