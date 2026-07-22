@@ -79,6 +79,10 @@
     .status-btn { background:#fff; color:#65738a; border-color:#dce2ea; padding:6px 9px; font-weight:500; }
     .status-btn.active { background:#eaf3fc; color:#1368b7; border-color:#bcd6ed; font-weight:800; }
     .empty { padding: 36px; text-align: center; }
+    .pagination { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px 20px; border-top:1px solid #e7ebf0; flex-wrap:wrap; }
+    .pagination button { min-width:38px; background:#fff; color:#536278; border-color:#d9e0e8; }
+    .pagination button.active { background:#1368b7; color:#fff; border-color:#1368b7; }
+    .pagination-info { color:#7c899d; font-size:13px; margin:0 4px; }
     .drawer-backdrop { position:fixed; inset:0; background:rgba(13,24,42,.34); z-index:1990; }
     .detail-drawer { position:fixed; top:0; right:0; bottom:0; width:min(520px,100%); background:#fff; z-index:2000; box-shadow:-8px 0 26px rgba(16,29,49,.18); display:flex; flex-direction:column; }
     .drawer-head { padding:20px 22px; border-bottom:1px solid #e2e7ed; display:flex; align-items:center; justify-content:space-between; }
@@ -166,14 +170,14 @@
             <button type="button" data-days="30" onclick="setQuickDate(30,this)">近30日</button>
           </div>
           <div class="date-field">
-            <input id="date-from" type="date" aria-label="開始日期" onchange="clearQuickDate();renderLeads()" />
+            <input id="date-from" type="date" aria-label="開始日期" onchange="clearQuickDate();applyFilters()" />
           </div>
           <span class="notice">—</span>
           <div class="date-field">
-            <input id="date-to" type="date" aria-label="結束日期" onchange="clearQuickDate();renderLeads()" />
+            <input id="date-to" type="date" aria-label="結束日期" onchange="clearQuickDate();applyFilters()" />
           </div>
           <div class="status-field">
-            <select id="status-filter" onchange="renderLeads()">
+            <select id="status-filter" onchange="applyFilters()">
               <option value="">全部</option>
               <option value="new">新客戶</option>
               <option value="contacted">已聯繫</option>
@@ -184,15 +188,15 @@
             </select>
           </div>
           <div class="status-field">
-            <select id="page-filter" onchange="renderLeads()">
+            <select id="page-filter" onchange="applyFilters()">
               <option value="">全部 Page</option>
             </select>
           </div>
           <button id="refresh-btn" onclick="loadLeads()">刷新訂單</button>
           <div class="filter-spacer"></div>
           <div class="search-wrap">
-            <input id="search" placeholder="搜尋姓名 / 手機 / LINE / 身分證" oninput="renderLeads()" />
-            <button type="button" onclick="renderLeads()">搜尋</button>
+            <input id="search" placeholder="搜尋姓名 / 手機 / LINE / 身分證" oninput="scheduleSearch()" />
+            <button type="button" onclick="applyFilters()">搜尋</button>
           </div>
         </div>
         <p id="export-note" class="notice export-note">未勾選時，會匯出目前篩選結果。</p>
@@ -202,13 +206,14 @@
         <div class="list-head">
           <h2>申請列表</h2>
           <div class="list-head-right">
-            <label class="select-all-wrap"><input id="select-all" type="checkbox" onchange="toggleAllVisible(this.checked)" /> 全選目前結果</label>
+            <label class="select-all-wrap"><input id="select-all" type="checkbox" onchange="toggleAllVisible(this.checked)" /> 全選本頁</label>
             <span id="result-count">0 筆</span>
             <button id="export-btn" class="secondary" onclick="exportCSV()">匯出 CSV</button>
           </div>
         </div>
         <div id="lead-list" class="lead-list"></div>
         <p id="empty-msg" class="notice empty hidden">目前沒有符合條件的名單。</p>
+        <div id="pagination" class="pagination hidden"></div>
       </div>
     </section>
   </main>
@@ -236,9 +241,16 @@
       rejected: '未成交',
       invalid: '無效'
     };
+    const PAGE_SIZE = 100;
     let leads = [];
     let selectedLeadIds = new Set();
+    let selectedLeadCache = new Map();
     let activeDetailId = null;
+    let currentPage = 1;
+    let totalRows = 0;
+    let totalPages = 1;
+    let pageStats = {};
+    let searchTimer = null;
 
     function escapeHTML(value) {
       return String(value || '').replace(/[&<>"']/g, ch => ({
@@ -315,7 +327,20 @@
       document.getElementById('app-panel').classList.remove('hidden');
       document.getElementById('user-bar').classList.remove('hidden');
       document.getElementById('user-email').textContent = data.user.email || '';
+      await loadPageOptions();
       await loadLeads();
+    }
+
+    async function loadPageOptions() {
+      const pageFilter = document.getElementById('page-filter');
+      const selectedPage = pageFilter.value;
+      const { data, error } = await client.from('pages').select('slug').order('slug');
+      if (error) return;
+      const pageSlugs = [...new Set((data || []).map(page => page.slug).filter(Boolean))];
+      pageFilter.innerHTML = '<option value="">全部 Page</option>' + pageSlugs.map(slug =>
+        `<option value="${escapeHTML(slug)}">${escapeHTML(slug)}</option>`
+      ).join('');
+      pageFilter.value = pageSlugs.includes(selectedPage) ? selectedPage : '';
     }
 
     function normalizeLeadName(value) {
@@ -345,13 +370,49 @@
         });
     }
 
-    async function loadLeads() {
+    function localDayStart(value) {
+      if (!value) return null;
+      return new Date(value + 'T00:00:00').toISOString();
+    }
+
+    function localDayEnd(value) {
+      if (!value) return null;
+      const date = new Date(value + 'T00:00:00');
+      date.setDate(date.getDate() + 1);
+      return date.toISOString();
+    }
+
+    function todayRange() {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+
+    function requestParams() {
+      const today = todayRange();
+      return {
+        p_page: currentPage,
+        p_page_size: PAGE_SIZE,
+        p_search: document.getElementById('search').value.trim() || null,
+        p_status: document.getElementById('status-filter').value || null,
+        p_page_slug: document.getElementById('page-filter').value || null,
+        p_from: localDayStart(document.getElementById('date-from').value),
+        p_to: localDayEnd(document.getElementById('date-to').value),
+        p_today_from: today.from,
+        p_today_to: today.to
+      };
+    }
+
+    async function loadLeads(options = {}) {
+      if (options.resetPage) currentPage = 1;
       const refreshBtn = document.getElementById('refresh-btn');
       if (refreshBtn) {
         refreshBtn.disabled = true;
         refreshBtn.textContent = '刷新中...';
       }
-      const { data, error } = await fetchAllLeads();
+      const { data, error } = await client.rpc('get_master_leads_page', requestParams());
       if (error) {
         alert('讀取名單失敗：' + error.message);
         if (refreshBtn) {
@@ -360,16 +421,18 @@
         }
         return;
       }
-      leads = data || [];
-      const pageFilter = document.getElementById('page-filter');
-      const selectedPage = pageFilter.value;
-      const pageSlugs = [...new Set(leads.map(lead => lead.page_slug || 'main'))].sort();
-      pageFilter.innerHTML = '<option value="">全部 Page</option>' + pageSlugs.map(slug =>
-        `<option value="${escapeHTML(slug)}">${escapeHTML(slug)}</option>`
-      ).join('');
-      pageFilter.value = pageSlugs.includes(selectedPage) ? selectedPage : '';
-      markDuplicateLeads();
-      selectedLeadIds = new Set([...selectedLeadIds].filter(id => leads.some(lead => lead.id === id)));
+      const payload = data || {};
+      leads = Array.isArray(payload.rows) ? payload.rows : [];
+      totalRows = Number(payload.total || 0);
+      totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+      pageStats = payload.stats || {};
+      leads.forEach(lead => {
+        if (selectedLeadIds.has(lead.id)) selectedLeadCache.set(lead.id, lead);
+      });
+      if (currentPage > totalPages) {
+        currentPage = totalPages;
+        return loadLeads();
+      }
       renderStats();
       renderLeads();
       if (activeDetailId && leads.some(lead => lead.id === activeDetailId)) openDetails(activeDetailId);
@@ -379,54 +442,22 @@
       }
     }
 
-    async function fetchAllLeads() {
-      const pageSize = 1000;
-      const allRows = [];
-      for (let from = 0; ; from += pageSize) {
-        const to = from + pageSize - 1;
-        const { data, error } = await client
-          .from('leads')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .range(from, to);
-        if (error) return { data: allRows, error };
-        const batch = data || [];
-        allRows.push(...batch);
-        if (batch.length < pageSize) break;
-      }
-      return { data: allRows, error: null };
-    }
-
     function renderStats() {
-      const today = new Date();
-      const scope = scopedLeads();
-      document.getElementById('stat-filtered').textContent = filteredLeads().length;
-      document.getElementById('stat-today').textContent = scope.filter(x => isSameDay(x.created_at, today)).length;
-      document.getElementById('stat-new').textContent = scope.filter(x => x.status === 'new').length;
-      document.getElementById('stat-contacted').textContent = scope.filter(x => x.status === 'contacted').length;
-      document.getElementById('stat-line-added').textContent = scope.filter(x => x.status === 'line_added').length;
-      document.getElementById('stat-approved').textContent = scope.filter(x => x.status === 'approved').length;
-      document.getElementById('stat-invalid').textContent = scope.filter(x => x.status === 'invalid').length;
+      document.getElementById('stat-filtered').textContent = Number(pageStats.filtered || 0);
+      document.getElementById('stat-today').textContent = Number(pageStats.today || 0);
+      document.getElementById('stat-new').textContent = Number(pageStats.new || 0);
+      document.getElementById('stat-contacted').textContent = Number(pageStats.contacted || 0);
+      document.getElementById('stat-line-added').textContent = Number(pageStats.line_added || 0);
+      document.getElementById('stat-approved').textContent = Number(pageStats.approved || 0);
+      document.getElementById('stat-invalid').textContent = Number(pageStats.invalid || 0);
     }
 
     function scopedLeads() {
-      const q = document.getElementById('search').value.trim().toLowerCase();
-      const page = document.getElementById('page-filter').value;
-      const from = document.getElementById('date-from').value;
-      const to = document.getElementById('date-to').value;
-      return leads.filter(lead => {
-        if (page && (lead.page_slug || 'main') !== page) return false;
-        if (from && new Date(lead.created_at) < new Date(from + 'T00:00:00')) return false;
-        if (to && new Date(lead.created_at) > new Date(to + 'T23:59:59')) return false;
-        if (!q) return true;
-        return [lead.name, lead.phone, lead.line_id, lead.city, lead.id_number]
-          .some(value => String(value || '').toLowerCase().includes(q));
-      });
+      return leads;
     }
 
     function filteredLeads() {
-      const status = document.getElementById('status-filter').value;
-      return scopedLeads().filter(lead => !status || lead.status === status);
+      return leads;
     }
 
     function setQuickDate(days, button) {
@@ -443,11 +474,21 @@
       document.getElementById('date-to').value = dateInputValue(to);
       document.querySelectorAll('.quick-dates button').forEach(btn => btn.classList.remove('active'));
       if (button) button.classList.add('active');
-      renderLeads();
+      applyFilters();
     }
 
     function clearQuickDate() {
       document.querySelectorAll('.quick-dates button').forEach(btn => btn.classList.remove('active'));
+    }
+
+    function applyFilters() {
+      clearTimeout(searchTimer);
+      loadLeads({ resetPage: true });
+    }
+
+    function scheduleSearch() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(applyFilters, 350);
     }
 
     function trafficSource(lead) {
@@ -468,13 +509,13 @@
       const list = document.getElementById('lead-list');
       const data = filteredLeads();
       document.getElementById('empty-msg').classList.toggle('hidden', data.length > 0);
-      document.getElementById('result-count').textContent = `${data.length} 筆・篩選中`;
+      document.getElementById('result-count').textContent = `共 ${totalRows} 筆・第 ${currentPage}/${totalPages} 頁・本頁 ${data.length} 筆`;
       list.innerHTML = data.map((lead, index) => `
         <article class="lead-row">
           <input class="lead-check" type="checkbox" ${selectedLeadIds.has(lead.id) ? 'checked' : ''} onchange="toggleLeadSelection('${lead.id}', this.checked)" />
           <div class="lead-summary">
             <div class="lead-title-line">
-              <span class="lead-index">${data.length - index}</span>
+              <span class="lead-index">${Math.max(totalRows - ((currentPage - 1) * PAGE_SIZE + index), 1)}</span>
               <span class="lead-name">${escapeHTML(lead.name || '未填姓名')}</span>
               ${lead.__isDuplicate
                 ? '<span class="tag tag-duplicate">重粉</span>'
@@ -504,6 +545,40 @@
       `).join('');
       renderStats();
       updateSelectionUI(data);
+      renderPagination();
+    }
+
+    function renderPagination() {
+      const pager = document.getElementById('pagination');
+      pager.classList.toggle('hidden', totalRows === 0);
+      if (!totalRows) {
+        pager.innerHTML = '';
+        return;
+      }
+      const pages = [];
+      const start = Math.max(1, currentPage - 2);
+      const end = Math.min(totalPages, currentPage + 2);
+      if (start > 1) pages.push(1);
+      if (start > 2) pages.push('…');
+      for (let page = start; page <= end; page += 1) pages.push(page);
+      if (end < totalPages - 1) pages.push('…');
+      if (end < totalPages) pages.push(totalPages);
+      pager.innerHTML = `
+        <button ${currentPage <= 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">上一頁</button>
+        ${pages.map(page => page === '…'
+          ? '<span class="pagination-info">…</span>'
+          : `<button class="${page === currentPage ? 'active' : ''}" onclick="goToPage(${page})">${page}</button>`
+        ).join('')}
+        <button ${currentPage >= totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">下一頁</button>
+      `;
+    }
+
+    function goToPage(page) {
+      if (page < 1 || page > totalPages || page === currentPage) return;
+      currentPage = page;
+      closeDetails();
+      loadLeads();
+      window.scrollTo({ top: document.getElementById('app-panel').offsetTop, behavior: 'smooth' });
     }
 
     function detailItem(label, value) {
@@ -620,15 +695,26 @@
     }
 
     function toggleLeadSelection(id, checked) {
-      if (checked) selectedLeadIds.add(id);
-      else selectedLeadIds.delete(id);
+      if (checked) {
+        selectedLeadIds.add(id);
+        const lead = leads.find(item => item.id === id);
+        if (lead) selectedLeadCache.set(id, lead);
+      } else {
+        selectedLeadIds.delete(id);
+        selectedLeadCache.delete(id);
+      }
       updateSelectionUI(filteredLeads());
     }
 
     function toggleAllVisible(checked) {
       filteredLeads().forEach(lead => {
-        if (checked) selectedLeadIds.add(lead.id);
-        else selectedLeadIds.delete(lead.id);
+        if (checked) {
+          selectedLeadIds.add(lead.id);
+          selectedLeadCache.set(lead.id, lead);
+        } else {
+          selectedLeadIds.delete(lead.id);
+          selectedLeadCache.delete(lead.id);
+        }
       });
       renderLeads();
     }
@@ -690,11 +776,44 @@
       }
     }
 
-    function exportCSV() {
+    async function fetchFilteredLeadsForExport() {
+      const rows = [];
+      let page = 1;
+      let expected = null;
+      for (;;) {
+        const params = requestParams();
+        params.p_page = page;
+        params.p_page_size = 1000;
+        const { data, error } = await client.rpc('get_master_leads_page', params);
+        if (error) return { data: rows, error };
+        const batch = Array.isArray(data && data.rows) ? data.rows : [];
+        expected = Number(data && data.total || 0);
+        rows.push(...batch);
+        if (!batch.length || rows.length >= expected) break;
+        page += 1;
+      }
+      return { data: rows, error: null };
+    }
+
+    async function exportCSV() {
       const cols = ['created_at','name','age','city','id_number','phone','line_id','q1_existing_loan','q2_bank_status','q3_amount_needed','q4_foreign_currency_account','status','notes','source_url'];
-      const selectedRows = leads.filter(row => selectedLeadIds.has(row.id));
-      const exportRows = selectedRows.length > 0 ? selectedRows : filteredLeads();
+      const button = document.getElementById('export-btn');
+      button.disabled = true;
+      button.textContent = '匯出準備中...';
+      let exportRows = [...selectedLeadCache.values()];
+      if (!exportRows.length) {
+        const result = await fetchFilteredLeadsForExport();
+        if (result.error) {
+          button.disabled = false;
+          updateSelectionUI(filteredLeads());
+          alert('匯出失敗：' + result.error.message);
+          return;
+        }
+        exportRows = result.data;
+      }
       if (exportRows.length === 0) {
+        button.disabled = false;
+        updateSelectionUI(filteredLeads());
         alert('目前沒有可匯出的名單。');
         return;
       }
@@ -708,6 +827,8 @@
       a.download = 'leads-' + new Date().toISOString().slice(0,10) + '.csv';
       a.click();
       URL.revokeObjectURL(url);
+      button.disabled = false;
+      updateSelectionUI(filteredLeads());
     }
 
     checkSession();
