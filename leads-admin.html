@@ -56,7 +56,7 @@
     .lead-row:last-child { border-bottom: 0; }
     .lead-row:hover { background: #f8fafc; }
     .lead-summary { min-width: 0; }
-    .lead-title-line { display: flex; align-items: center; gap: 9px; min-width: 0; margin-bottom: 7px; }
+    .lead-title-line { display: flex; align-items: center; gap: 9px; min-width: 0; margin-bottom: 7px; flex-wrap:wrap; }
     .lead-index { color: #9aa7ba; font-size: 13px; width: 28px; flex: 0 0 auto; }
     .lead-name { font-size: 16px; font-weight: 800; color: #111c30; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tag { display:inline-flex; align-items:center; padding:3px 7px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; }
@@ -71,6 +71,9 @@
     .tag-duplicate { background:#f9e1ff; color:#a02cb4; border:1px solid #ecaaf5; }
     .tag-fb { background:#e7f0ff; color:#1769d2; }
     .tag-tiktok { background:#171717; color:#fff; }
+    .tag-operator { background:#fff1dd; color:#a65b00; }
+    .password-panel { max-width:560px; padding:22px; }
+    .password-actions { display:flex; gap:8px; margin-top:14px; }
     .lead-meta { display:flex; align-items:center; gap:20px; white-space:nowrap; overflow:hidden; color:#526178; font-size:13px; }
     .lead-meta span { overflow:hidden; text-overflow:ellipsis; }
     .lead-meta strong { color:#19263a; }
@@ -131,6 +134,7 @@
     <div id="user-bar" class="hidden">
       <span id="user-email"></span>
       <a href="admin.html" style="color:#fff;text-decoration:none">Page 管理</a>
+      <button class="secondary" onclick="openPasswordPanel()">修改主密碼</button>
       <button class="secondary" onclick="signOut()">登出</button>
     </div>
   </header>
@@ -150,6 +154,24 @@
     </section>
 
     <section id="app-panel" class="hidden">
+      <section id="password-panel" class="panel password-panel hidden">
+        <h2 style="margin-top:0">修改主後台密碼</h2>
+        <p class="notice">修改後，Page 管理與客戶訂單後台都要使用新密碼登入；各 Page 投手密碼不受影響。</p>
+        <label for="current-master-password">目前密碼</label>
+        <input id="current-master-password" type="password" autocomplete="current-password" />
+        <div style="height:12px"></div>
+        <label for="new-master-password">新密碼</label>
+        <input id="new-master-password" type="password" autocomplete="new-password" />
+        <div style="height:12px"></div>
+        <label for="confirm-master-password">再次輸入新密碼</label>
+        <input id="confirm-master-password" type="password" autocomplete="new-password" />
+        <div class="password-actions">
+          <button id="change-password-btn" onclick="changeMasterPassword()">儲存新密碼</button>
+          <button class="secondary" onclick="closePasswordPanel()">取消</button>
+        </div>
+        <p id="password-msg" class="notice"></p>
+      </section>
+
       <div class="stats">
         <div class="stat" style="--accent:#5865f2"><b id="stat-filtered">0</b><span>篩選結果</span></div>
         <div class="stat" style="--accent:#3185ff"><b id="stat-today">0</b><span>當日新增</span></div>
@@ -251,6 +273,7 @@
     let totalPages = 1;
     let pageStats = {};
     let searchTimer = null;
+    let pageOperatorNames = new Map();
 
     function escapeHTML(value) {
       return String(value || '').replace(/[&<>"']/g, ch => ({
@@ -311,6 +334,75 @@
       location.reload();
     }
 
+    function openPasswordPanel() {
+      document.getElementById('current-master-password').value = '';
+      document.getElementById('new-master-password').value = '';
+      document.getElementById('confirm-master-password').value = '';
+      document.getElementById('password-msg').textContent = '';
+      const panel = document.getElementById('password-panel');
+      panel.classList.remove('hidden');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closePasswordPanel() {
+      document.getElementById('password-panel').classList.add('hidden');
+    }
+
+    async function changeMasterPassword() {
+      const currentPassword = document.getElementById('current-master-password').value;
+      const newPassword = document.getElementById('new-master-password').value;
+      const confirmPassword = document.getElementById('confirm-master-password').value;
+      const message = document.getElementById('password-msg');
+      const button = document.getElementById('change-password-btn');
+      message.className = 'notice error';
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        message.textContent = '請完整填寫三個密碼欄位。';
+        return;
+      }
+      if (newPassword.length < 8) {
+        message.textContent = '新密碼至少需要 8 個字元。';
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        message.textContent = '兩次輸入的新密碼不一致。';
+        return;
+      }
+      if (newPassword === currentPassword) {
+        message.textContent = '新密碼不能與目前密碼相同。';
+        return;
+      }
+      button.disabled = true;
+      message.className = 'notice';
+      message.textContent = '正在驗證目前密碼...';
+      const { error: verifyError } = await client.auth.signInWithPassword({
+        email: ADMIN_LOGIN_EMAIL,
+        password: currentPassword
+      });
+      if (verifyError) {
+        button.disabled = false;
+        message.className = 'notice error';
+        message.textContent = '目前密碼錯誤。';
+        return;
+      }
+      message.textContent = '正在更新密碼...';
+      const { error } = await client.auth.updateUser({
+        password: newPassword,
+        current_password: currentPassword
+      });
+      button.disabled = false;
+      if (error) {
+        message.className = 'notice error';
+        message.textContent = '修改失敗：' + error.message;
+        return;
+      }
+      message.className = 'notice';
+      message.textContent = '密碼修改成功，即將登出，請使用新密碼重新登入。';
+      setTimeout(async () => {
+        await client.auth.signOut();
+        location.reload();
+      }, 1200);
+    }
+
     async function checkSession() {
       if (!client) {
         const msg = document.getElementById('login-msg');
@@ -334,8 +426,12 @@
     async function loadPageOptions() {
       const pageFilter = document.getElementById('page-filter');
       const selectedPage = pageFilter.value;
-      const { data, error } = await client.from('pages').select('slug').order('slug');
+      const { data, error } = await client.from('pages').select('slug,operator_note').order('slug');
       if (error) return;
+      pageOperatorNames = new Map((data || []).filter(page => page.slug).map(page => [
+        page.slug,
+        String(page.operator_note || '').trim()
+      ]));
       const pageSlugs = [...new Set((data || []).map(page => page.slug).filter(Boolean))];
       pageFilter.innerHTML = '<option value="">全部 Page</option>' + pageSlugs.map(slug =>
         `<option value="${escapeHTML(slug)}">${escapeHTML(slug)}</option>`
@@ -524,6 +620,7 @@
               ${lead.line_clicked ? '<span class="tag tag-line">已點 LINE</span>' : ''}
               ${trafficSourceTag(lead)}
               <span class="tag tag-contacted">Page：${escapeHTML(lead.page_slug || 'main')}</span>
+              <span class="tag tag-operator">投手：${escapeHTML(pageOperatorNames.get(lead.page_slug || 'main') || '未备注')}</span>
             </div>
             <div class="lead-meta">
               <span>手機 <strong>${escapeHTML(lead.phone)}</strong></span>
