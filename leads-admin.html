@@ -71,7 +71,20 @@
     .tag-duplicate { background:#f9e1ff; color:#a02cb4; border:1px solid #ecaaf5; }
     .tag-fb { background:#e7f0ff; color:#1769d2; }
     .tag-tiktok { background:#171717; color:#fff; }
-    .tag-operator { background:#fff1dd; color:#a65b00; }
+    .tag-operator { border:1px solid transparent; }
+    .tag-operator-unassigned { background:#f1f3f6; color:#687386; border-color:#dce1e8; }
+    .tag-operator-0 { background:#fff1dd; color:#9a5700; border-color:#ffd79e; }
+    .tag-operator-1 { background:#e7f0ff; color:#1761bd; border-color:#bdd5ff; }
+    .tag-operator-2 { background:#e4f8ed; color:#087947; border-color:#b6e9ce; }
+    .tag-operator-3 { background:#f2eaff; color:#6938b8; border-color:#d9c5ff; }
+    .tag-operator-4 { background:#ffe9ef; color:#ad3154; border-color:#ffc4d3; }
+    .tag-operator-5 { background:#e4f8fa; color:#08717a; border-color:#b5e7eb; }
+    .tag-operator-6 { background:#fff5cf; color:#896600; border-color:#f1dc82; }
+    .tag-operator-7 { background:#e9edff; color:#4154b3; border-color:#c7d0ff; }
+    .tag-operator-8 { background:#e0f5ff; color:#086e99; border-color:#aee2f8; }
+    .tag-operator-9 { background:#ffebe4; color:#a94422; border-color:#ffc8b5; }
+    .tag-operator-10 { background:#edf7d9; color:#557b0b; border-color:#d0e9a0; }
+    .tag-operator-11 { background:#f0e9e4; color:#735142; border-color:#ddcbbf; }
     .password-panel { max-width:560px; padding:22px; }
     .password-actions { display:flex; gap:8px; margin-top:14px; }
     .lead-meta { display:flex; align-items:center; gap:20px; white-space:nowrap; overflow:hidden; color:#526178; font-size:13px; }
@@ -274,11 +287,21 @@
     let pageStats = {};
     let searchTimer = null;
     let pageOperatorNames = new Map();
+    let operatorColorClasses = new Map();
 
     function escapeHTML(value) {
       return String(value || '').replace(/[&<>"']/g, ch => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
       }[ch]));
+    }
+
+    function operatorTag(pageSlug) {
+      const name = String(pageOperatorNames.get(pageSlug || 'main') || '').trim();
+      if (!name) {
+        return '<span class="tag tag-operator tag-operator-unassigned">投手：未备注</span>';
+      }
+      const colorClass = operatorColorClasses.get(name) || 'tag-operator-0';
+      return `<span class="tag tag-operator ${colorClass}">投手：${escapeHTML(name)}</span>`;
     }
 
     function formatDate(value) {
@@ -431,6 +454,13 @@
       pageOperatorNames = new Map((data || []).filter(page => page.slug).map(page => [
         page.slug,
         String(page.operator_note || '').trim()
+      ]));
+      const operatorNames = [...new Set([...pageOperatorNames.values()].filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'zh-TW')
+      );
+      operatorColorClasses = new Map(operatorNames.map((name, index) => [
+        name,
+        `tag-operator-${index % 12}`
       ]));
       const pageSlugs = [...new Set((data || []).map(page => page.slug).filter(Boolean))];
       pageFilter.innerHTML = '<option value="">全部 Page</option>' + pageSlugs.map(slug =>
@@ -620,7 +650,7 @@
               ${lead.line_clicked ? '<span class="tag tag-line">已點 LINE</span>' : ''}
               ${trafficSourceTag(lead)}
               <span class="tag tag-contacted">Page：${escapeHTML(lead.page_slug || 'main')}</span>
-              <span class="tag tag-operator">投手：${escapeHTML(pageOperatorNames.get(lead.page_slug || 'main') || '未备注')}</span>
+              ${operatorTag(lead.page_slug)}
             </div>
             <div class="lead-meta">
               <span>手機 <strong>${escapeHTML(lead.phone)}</strong></span>
