@@ -66,6 +66,7 @@
     .tag-approved { background:#eee8ff; color:#6741c7; }
     .tag-rejected { background:#fff2d7; color:#9b6100; }
     .tag-invalid { background:#fde9e9; color:#b42e2e; }
+    .tag-invalid-reason { background:#fff4df; color:#945c00; border:1px solid #f1d28a; }
     .tag-line { background:#f3e4ff; color:#9637b4; }
     .tag-fresh { background:#dcf8eb; color:#087b42; }
     .tag-duplicate { background:#f9e1ff; color:#a02cb4; border:1px solid #ecaaf5; }
@@ -94,6 +95,7 @@
     .lead-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; max-width:450px; }
     .status-btn { background:#fff; color:#65738a; border-color:#dce2ea; padding:6px 9px; font-weight:500; }
     .status-btn.active { background:#eaf3fc; color:#1368b7; border-color:#bcd6ed; font-weight:800; }
+    .invalid-reason-select { width:auto; min-width:96px; padding:6px 8px; border-radius:6px; font-size:12px; color:#526178; }
     .empty { padding: 36px; text-align: center; }
     .pagination { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px 20px; border-top:1px solid #e7ebf0; flex-wrap:wrap; }
     .pagination button { min-width:38px; background:#fff; color:#536278; border-color:#d9e0e8; }
@@ -276,6 +278,7 @@
       rejected: '未成交',
       invalid: '無效'
     };
+    const invalidReasons = ['重粉','邮局','警示户','无法添加','其他'];
     const PAGE_SIZE = 100;
     let leads = [];
     let selectedLeadIds = new Set();
@@ -302,6 +305,22 @@
       }
       const colorClass = operatorColorClasses.get(name) || 'tag-operator-0';
       return `<span class="tag tag-operator ${colorClass}">投手：${escapeHTML(name)}</span>`;
+    }
+
+    function invalidReasonText(lead) {
+      return String(lead && lead.invalid_reason || '').trim();
+    }
+
+    function invalidReasonTag(lead) {
+      const reason = invalidReasonText(lead);
+      return reason ? `<span class="tag tag-invalid-reason">${escapeHTML(reason)}</span>` : '';
+    }
+
+    function invalidReasonOptions(lead) {
+      const current = invalidReasonText(lead);
+      return '<option value="">無效原因</option>' + invalidReasons.map(reason =>
+        `<option value="${escapeHTML(reason)}" ${current === reason ? 'selected' : ''}>${escapeHTML(reason)}</option>`
+      ).join('');
     }
 
     function formatDate(value) {
@@ -647,6 +666,7 @@
                 ? '<span class="tag tag-duplicate">重粉</span>'
                 : '<span class="tag tag-fresh">新客戶</span>'}
               ${lead.status === 'new' ? '' : `<span class="tag tag-${escapeHTML(lead.status)}">${escapeHTML(statusLabels[lead.status] || lead.status)}</span>`}
+              ${lead.status === 'invalid' ? invalidReasonTag(lead) : ''}
               ${lead.line_clicked ? '<span class="tag tag-line">已點 LINE</span>' : ''}
               ${trafficSourceTag(lead)}
               <span class="tag tag-contacted">Page：${escapeHTML(lead.page_slug || 'main')}</span>
@@ -664,7 +684,8 @@
             <button class="status-btn ${lead.status === 'contacted' ? 'active' : ''}" onclick="updateLead('${lead.id}',{status:'contacted'})">已聯繫</button>
             <button class="status-btn ${lead.status === 'line_added' ? 'active' : ''}" onclick="updateLead('${lead.id}',{status:'line_added'})">已添加</button>
             <button class="status-btn ${lead.status === 'approved' ? 'active' : ''}" onclick="updateLead('${lead.id}',{status:'approved'})">已成交</button>
-            <button class="status-btn ${lead.status === 'invalid' ? 'active' : ''}" onclick="updateLead('${lead.id}',{status:'invalid'})">無效</button>
+            <select id="invalid-reason-${lead.id}" class="invalid-reason-select" aria-label="無效原因">${invalidReasonOptions(lead)}</select>
+            <button class="status-btn ${lead.status === 'invalid' ? 'active' : ''}" onclick="markInvalid('${lead.id}')">無效</button>
             <button onclick="copyLead('${lead.id}')">一鍵複製</button>
             <button class="secondary" onclick="openDetails('${lead.id}')">詳情</button>
           </div>
@@ -721,6 +742,7 @@
         <div class="detail-grid">
           ${detailItem('提交時間', formatDate(lead.created_at))}
           ${detailItem('目前狀態', statusLabels[lead.status] || lead.status)}
+          ${lead.status === 'invalid' ? detailItem('無效原因', invalidReasonText(lead)) : ''}
           ${detailItem('客戶類型', lead.__isDuplicate ? '重粉' : '新客戶')}
           ${detailItem('姓名', lead.name)}
           ${detailItem('年齡', lead.age ? lead.age + ' 歲' : '')}
@@ -747,7 +769,9 @@
           <h3>快速操作</h3>
           <div class="drawer-actions">
             ${Object.entries(statusLabels).map(([value, label]) =>
-              `<button class="${lead.status === value ? '' : 'secondary'}" onclick="updateLead('${lead.id}',{status:'${value}'})">${escapeHTML(label)}</button>`
+              value === 'invalid'
+                ? `<select id="detail-invalid-reason-${lead.id}" class="invalid-reason-select">${invalidReasonOptions(lead)}</select><button class="${lead.status === value ? '' : 'secondary'}" onclick="markInvalid('${lead.id}','detail-invalid-reason-${lead.id}')">${escapeHTML(label)}</button>`
+                : `<button class="${lead.status === value ? '' : 'secondary'}" onclick="updateLead('${lead.id}',{status:'${value}'})">${escapeHTML(label)}</button>`
             ).join('')}
             <button onclick="copyLeadField('${lead.id}','phone')">複製電話</button>
             <button onclick="copyLeadField('${lead.id}','line_id')">複製 LINE</button>
@@ -867,12 +891,25 @@
     }
 
     async function updateLead(id, patch) {
+      if (patch && patch.status && patch.status !== 'invalid') {
+        patch.invalid_reason = null;
+      }
       const { error } = await client.from('leads').update(patch).eq('id', id);
       if (error) {
         alert('更新失敗：' + error.message);
         return;
       }
       await loadLeads();
+    }
+
+    function markInvalid(id, selectId) {
+      const select = document.getElementById(selectId || 'invalid-reason-' + id);
+      const reason = select ? select.value : '';
+      if (!reason) {
+        alert('請先選擇無效原因');
+        return;
+      }
+      updateLead(id, { status: 'invalid', invalid_reason: reason });
     }
 
     function saveDetailNotes(id) {
@@ -922,7 +959,7 @@
     }
 
     async function exportCSV() {
-      const cols = ['created_at','name','age','city','id_number','phone','line_id','q1_existing_loan','q2_bank_status','q3_amount_needed','q4_foreign_currency_account','status','notes','source_url'];
+      const cols = ['created_at','name','age','city','id_number','phone','line_id','q1_existing_loan','q2_bank_status','q3_amount_needed','q4_foreign_currency_account','status','invalid_reason','notes','source_url'];
       const button = document.getElementById('export-btn');
       button.disabled = true;
       button.textContent = '匯出準備中...';
