@@ -10,6 +10,8 @@
     @media(max-width:720px){header{height:auto;padding:14px 16px;flex-wrap:wrap}.sub{display:none}main{padding:14px 10px}.stats{grid-template-columns:repeat(2,1fr);gap:8px}.stat{min-height:90px;padding:14px 12px 12px 18px}.stat b{font-size:27px}.filters{padding:12px}.quick-dates{width:100%;overflow-x:auto}.quick-dates button{flex:1;padding:9px 12px}.date-field,.status-field,.search{width:100%;min-width:0}.spacer{display:none}.list-head{padding:14px;flex-wrap:wrap}.lead-row{display:block;padding:14px}.lead-check{margin-bottom:9px}.actions{margin-top:12px;justify-content:flex-start}.detail-grid{grid-template-columns:1fr}}
     .tag-fb{background:#e7f0ff;color:#1769d2}.tag-tiktok{background:#171717;color:#fff}
   </style>
+  <script src="security.config.js"></script>
+  <script src="admin-security.js"></script>
 </head>
 <body>
 <header><h1 id="title">投手交單系統 <span class="sub">客戶申請管理</span></h1><button id="logout" class="secondary hidden" onclick="logout()">登出</button></header>
@@ -45,8 +47,8 @@ let rows=[],pagePassword='',selected=new Set(),selectedCache=new Map(),activeId=
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 function invalidReasonText(r){return String(r&&r.invalid_reason||'').trim()}function invalidReasonTag(r){const reason=invalidReasonText(r);return reason?`<span class="tag tag-invalid-reason">${esc(reason)}</span>`:''}function invalidReasonOptions(r){const current=invalidReasonText(r);return '<option value="">無效原因</option>'+invalidReasons.map(reason=>`<option value="${esc(reason)}" ${current===reason?'selected':''}>${esc(reason)}</option>`).join('')}
 $('page-label').textContent=`登入 Page：${slug}`;$('title').innerHTML=`${esc(slug)} 投手交單系統 <span class="sub">客戶申請管理</span>`;
-async function login(){const b=$('login-btn');b.disabled=true;pagePassword=$('password').value;const {data,error}=await db.rpc('page_login',{target_slug:slug,page_password:pagePassword});b.disabled=false;$('msg').textContent=error||!data?'密碼錯誤':'登入成功';$('msg').className=error||!data?'notice error':'notice';if(data){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');loadLeads({resetPage:true})}}
-function logout(){pagePassword='';location.reload()}
+async function login(){const b=$('login-btn');b.disabled=true;pagePassword=$('password').value;const {data,error}=await CSecurity.pageLogin(slug,pagePassword);$('password').value='';if(data)pagePassword=data;b.disabled=false;$('msg').textContent=error?error.message:!data?'密碼錯誤':'登入成功';$('msg').className=error||!data?'notice error':'notice';if(data){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');loadLeads({resetPage:true})}}
+async function logout(){await CSecurity.logout();pagePassword='';location.reload()}
 function normName(v){return String(v||'').trim().replace(/\s+/g,'').toLowerCase()}function normPhone(v){let p=String(v||'').replace(/\D/g,'');return p.startsWith('8869')?'0'+p.slice(3):p}
 function markDuplicates(){const names=new Set(),phones=new Set();[...rows].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(r=>{const n=normName(r.name),p=normPhone(r.phone);r.__duplicate=!!((n&&names.has(n))||(p&&phones.has(p)));if(n)names.add(n);if(p)phones.add(p)})}
 function localDayStart(value){return value?new Date(value+'T00:00:00').toISOString():null}
@@ -73,7 +75,7 @@ function toggleOne(id,on){if(on){selected.add(id);const row=rows.find(r=>r.id===
 function toggleAll(on){filtered().forEach(r=>{if(on){selected.add(r.id);selectedCache.set(r.id,r)}else{selected.delete(r.id);selectedCache.delete(r.id)}});render()}
 function selectionUI(data){const visible=data.filter(r=>selected.has(r.id)).length;$('select-all').checked=data.length>0&&visible===data.length;$('select-all').indeterminate=visible>0&&visible<data.length;$('export').textContent=selected.size?`匯出已勾選 ${selected.size} 筆`:'匯出 CSV';$('export-note').textContent=selected.size?'會匯出已勾選的訂單。':'未勾選時，會匯出目前篩選結果。'}
 async function fetchFilteredRowsForExport(){const all=[];let page=1,expected=null;for(;;){const params=requestParams();params.p_page=page;params.p_page_size=1000;const{data,error}=await db.rpc('get_page_leads_page',params);if(error)return{data:all,error};const batch=Array.isArray(data&&data.rows)?data.rows:[];expected=Number(data&&data.total||0);all.push(...batch);if(!batch.length||all.length>=expected)break;page+=1}return{data:all,error:null}}
-async function exportCSV(){const button=$('export'),cols=['created_at','name','age','city','id_number','phone','line_id','q1_existing_loan','q2_bank_status','q3_amount_needed','q4_foreign_currency_account','status','invalid_reason','source_url'];button.disabled=true;button.textContent='匯出準備中...';let data=[...selectedCache.values()];if(!data.length){const result=await fetchFilteredRowsForExport();if(result.error){button.disabled=false;selectionUI(filtered());alert('匯出失敗：'+result.error.message);return}data=result.data}if(!data.length){button.disabled=false;selectionUI(filtered());alert('目前沒有可匯出的名單。');return}const csv=[cols.join(',')].concat(data.map(r=>cols.map(c=>`"${String(r[c]||'').replace(/"/g,'""')}"`).join(','))).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download=`${slug}-leads-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);button.disabled=false;selectionUI(filtered())}
+async function exportCSV(){const button=$('export'),cols=['created_at','name','age','city','id_number','phone','line_id','q1_existing_loan','q2_bank_status','q3_amount_needed','q4_foreign_currency_account','status','invalid_reason','source_url'];button.disabled=true;button.textContent='匯出準備中...';let data=[...selectedCache.values()];if(!data.length){const result=await fetchFilteredRowsForExport();if(result.error){button.disabled=false;selectionUI(filtered());alert('匯出失敗：'+result.error.message);return}data=result.data}if(!data.length){button.disabled=false;selectionUI(filtered());alert('目前沒有可匯出的名單。');return}if(!await CSecurity.recordExport(data.length,slug)){button.disabled=false;selectionUI(filtered());return}const csv=[cols.join(',')].concat(data.map(r=>cols.map(c=>`"${String(r[c]||'').replace(/"/g,'""')}"`).join(','))).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download=`${slug}-leads-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);button.disabled=false;selectionUI(filtered())}
 </script>
 <script>
 function detectedTrafficSource(r){
@@ -118,5 +120,8 @@ render=function(){
     line.appendChild(tag);
   });
 };
+</script>
+<script>
+(async()=>{try{const token=await CSecurity.restore('page',slug);if(!token)return;pagePassword=token;$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');await loadLeads({resetPage:true});await loadAssignedDomain()}catch(_){$('msg').textContent='安全服务暂时无法连接，请稍后重试。'}})();
 </script>
 </body></html>

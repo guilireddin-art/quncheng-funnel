@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src https://ijzywhrnhvldkjdwfdyy.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>C 项目安全中心</title>
+  <link rel="stylesheet" href="security.center.css">
+  <script defer src="security.config.js"></script>
+  <script defer src="admin-security.js"></script>
+  <script defer src="security.center.js"></script>
+</head>
+<body>
+  <section id="login" class="login-screen">
+    <div class="login-wrap">
+      <div class="login-brand"><span class="brand-mark">安</span>C 项目安全中心</div>
+      <form id="login-form" class="login-card">
+        <h1>独立安全登录</h1>
+        <p>管理后台登录设备、账号权限和安全设置。</p>
+        <label for="username">安全账号</label>
+        <input id="username" name="username" value="security-admin" autocomplete="username" required maxlength="80">
+        <label for="password">独立密码</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="72">
+        <p id="login-error" class="error-message" role="alert" hidden></p>
+        <button class="primary login-submit" type="submit">登录安全中心</button>
+      </form>
+    </div>
+  </section>
+  <div id="app" class="layout" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">安</span><span>安全中心<small>C PROJECT SECURITY</small></span></div>
+      <nav aria-label="安全管理">
+        <button class="nav-item active" data-view="overview">安全概览</button>
+        <button class="nav-item" data-view="devices">登录设备</button>
+        <button class="nav-item" data-view="sessions">会话管理</button>
+        <button class="nav-item" data-view="accounts">账号权限</button>
+        <button class="nav-item" data-view="logs">安全日志</button>
+        <button class="nav-item" data-view="settings">安全设置</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="sidebar-note">C 项目 · 独立安全管理</span><button id="logout" class="nav-item">退出安全中心</button></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><span>C 项目 / 安全管理</span><div class="topbar-right"><span id="connection">正在连接</span><span>security-admin</span><button id="mobile-logout" class="secondary small">退出</button></div></header>
+      <main>
+        <div class="page-header"><div><h1 id="title">安全概览</h1><p id="subtitle"></p></div><div class="header-actions"><button id="refresh" class="secondary">刷新数据</button></div></div>
+        <p id="service-error" class="error-message" role="alert" hidden></p>
+        <div id="content" aria-live="polite"></div>
+      </main>
+      <footer class="footer"><span id="updated">尚未取得服务器数据</span><span>设备状态按最近心跳判断，浏览器关闭后可能有短暂延迟。</span></footer>
+    </div>
+  </div>
+  <dialog id="confirm" class="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-description"></p><label id="remark-label" class="device-remark" hidden>设备备注<input id="remark-input" maxlength="50"></label><div class="dialog-actions"><button value="cancel" class="secondary">取消</button><button value="confirm" class="primary">确认</button></div></form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

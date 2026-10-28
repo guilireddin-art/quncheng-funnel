@@ -142,6 +142,8 @@
       .detail-grid { grid-template-columns:1fr; }
     }
   </style>
+  <script src="security.config.js"></script>
+  <script src="admin-security.js"></script>
 </head>
 <body>
   <header>
@@ -360,19 +362,17 @@
         return;
       }
       btn.disabled = true;
-      const { error } = await client.auth.signInWithPassword({
-        email: ADMIN_LOGIN_EMAIL,
-        password
-      });
+      const { error } = await CSecurity.masterLogin(client,password);
       btn.disabled = false;
-      msg.textContent = error ? '帳號或密碼錯誤。' : '登入成功，正在載入名單...';
+      msg.textContent = error ? error.message : '登入成功，正在載入名單...';
       msg.className = error ? 'notice error' : 'notice';
       if (!error) await checkSession();
     }
 
     async function signOut() {
       if (!client) return;
-      await client.auth.signOut();
+      await CSecurity.logout();
+      await client.auth.signOut({scope:'local'});
       location.reload();
     }
 
@@ -416,10 +416,7 @@
       button.disabled = true;
       message.className = 'notice';
       message.textContent = '正在驗證目前密碼...';
-      const { error: verifyError } = await client.auth.signInWithPassword({
-        email: ADMIN_LOGIN_EMAIL,
-        password: currentPassword
-      });
+      const { error: verifyError } = await CSecurity.masterLogin(client,currentPassword);
       if (verifyError) {
         button.disabled = false;
         message.className = 'notice error';
@@ -454,6 +451,7 @@
         }
         return;
       }
+      if (!await CSecurity.masterRestore(client)) return;
       await client.auth.getSession();
       const { data } = await client.auth.getUser();
       if (!data.user) return;
@@ -980,6 +978,7 @@
         alert('目前沒有可匯出的名單。');
         return;
       }
+      if (!await CSecurity.recordExport(exportRows.length, null)) { button.disabled = false; updateSelectionUI(filteredLeads()); return; }
       const csv = [cols.join(',')].concat(exportRows.map(row =>
         cols.map(col => '"' + String(row[col] || '').replace(/"/g, '""') + '"').join(',')
       )).join('\n');
