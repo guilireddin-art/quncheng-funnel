@@ -4,7 +4,7 @@
   const titles={overview:'安全概览',devices:'登录设备',sessions:'会话管理',accounts:'账号权限','ip-allowlist':'IP 白名单','device-approval':'设备批准',logs:'安全日志',settings:'安全设置'};
   const descriptions={overview:'查看真实登录活动、新设备提醒和近期敏感操作。',devices:'查看投手、总后台与安全中心的登录设备。',sessions:'结束指定设备、其他设备或某个账号的全部会话。',accounts:'停用后台登录权限，不改变落地页收单状态。','ip-allowlist':'保存总后台 IP 名单，当前仅管理，尚未启用访问拦截。','device-approval':'总后台浏览器审批登记，当前不改变现有登录权限。',logs:'服务器记录的登录、安全操作和导出记录。',settings:'管理登录限速、会话时限和新设备提醒。'};
   const statuses={active:'活跃会话',idle:'暂时闲置',offline:'暂无心跳',unknown:'历史会话 · 状态未知',revoked:'已退出',expired:'已超时',disabled:'账号已停用'};
-  const events={login_success:'登录成功',login_failed:'登录失败',logout:'退出登录',new_device:'新设备提醒',revoke:'结束会话',account:'账号权限',export:'导出记录',settings:'安全设置',ip_management:'IP 名单管理',device_review:'设备审批登记'};
+  const events={login_success:'登录成功',login_failed:'登录失败',logout:'退出登录',new_device:'新设备提醒',revoke:'结束会话',account:'账号权限',export:'导出记录',settings:'安全设置',ip_management:'IP 名单管理',device_review:'设备审批登记',device_note_sync:'设备备注同步'};
   const accessView=()=>['ip-allowlist','device-approval'].includes(view);
   let data=null,view=titles[location.hash.slice(1)]?location.hash.slice(1):'overview',search='',status='',account='',timer=null,epoch=0,fetching=false,toastTimer;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,11 +26,12 @@
   function filters(mode){
     return `<div class="filters"><input id="search" aria-label="搜索记录" placeholder="搜索投手、账号、设备或 IP" value="${esc(search)}"><select id="account-filter" aria-label="账号筛选"><option value="">全部账号</option>${data.accounts.map(a=>`<option value="${esc(a.id)}" ${a.id===account?'selected':''}>${esc(a.name)} (${esc(a.username)})</option>`).join('')}</select>${mode==='devices'?`<select id="status-filter" aria-label="会话状态"><option value="">全部状态</option>${Object.entries(statuses).map(([k,v])=>`<option value="${k}" ${status===k?'selected':''}>${v}</option>`).join('')}</select>`:''}</div>`;
   }
+  function ipDisplay(ip,accountId){const key=v=>String(v||'').replace(/\/(32|128)$/,'').toLowerCase();const labels=data.sessions.filter(s=>s.accountId===accountId&&key(s.ip)===key(ip)&&s.remark).map(s=>s.remark);return window.CSecurityAccess?window.CSecurityAccess.formatIp(ip,labels):esc(ip||'未取得');}
   function sessionRows(sessions){return sessions.map(s=>{
     const a=person(s.accountId),open=!['revoked','expired','disabled'].includes(s.status);
-    return `<tr><td><div class="cell-main"><strong>${esc(s.name)}</strong><small>${esc(a?.username||s.accountId)}</small></div></td><td><div class="cell-main">${esc(s.remark||device(s.userAgent))}${s.current?tag('当前安全会话'):''}<small>${esc(device(s.userAgent))}</small></div></td><td>${(a?.pages||[]).map(tag).join('')}</td><td class="mono">${esc(s.ip||'未取得')}</td><td><div class="cell-main">${esc(date(s.lastSeenAt))}<small>登录：${esc(date(s.createdAt))}</small></div></td><td>${badge(s.status)}</td><td><div class="row-actions">${button('detail',s.id,'详情 / 备注')}${open?button('revoke',s.id,'退出','red'):''}</div></td></tr>`;
+    return `<tr><td><div class="cell-main"><strong>${esc(s.name)}</strong><small>${esc(a?.username||s.accountId)}</small></div></td><td><div class="cell-main">${esc(s.remark||device(s.userAgent))}${s.current?tag('当前安全会话'):''}<small>${esc(device(s.userAgent))}</small></div></td><td>${(a?.pages||[]).map(tag).join('')}</td><td>${ipDisplay(s.ip,s.accountId)}</td><td><div class="cell-main">${esc(date(s.lastSeenAt))}<small>登录：${esc(date(s.createdAt))}</small></div></td><td>${badge(s.status)}</td><td><div class="row-actions">${button('detail',s.id,'详情 / 备注')}${open?button('revoke',s.id,'退出','red'):''}</div></td></tr>`;
   });}
-  function logsTable(logs){return table(['时间','操作账号','事件','内容','网络出口 IP'],logs.map(l=>`<tr><td>${esc(date(l.created_at))}</td><td>${esc(l.actor||l.account_key)}</td><td>${esc(events[l.event_type]||l.event_type)}</td><td class="log-detail">${esc(l.detail)}</td><td class="mono">${esc(l.ip||'未取得')}</td></tr>`));}
+  function logsTable(logs){return table(['时间','操作账号','事件','内容','网络出口 IP'],logs.map(l=>`<tr><td>${esc(date(l.created_at))}</td><td>${esc(l.actor||l.account_key)}</td><td>${esc(events[l.event_type]||l.event_type)}</td><td class="log-detail">${esc(l.detail)}</td><td>${ipDisplay(l.ip,l.account_key)}</td></tr>`));}
   function overview(){
     const active=data.sessions.filter(s=>['active','idle'].includes(s.status)).length, alerts=data.logs.filter(l=>l.event_type==='new_device'&&!l.acknowledged_at),failures=data.logs.filter(l=>l.event_type==='login_failed'&&recent(l.created_at)),sensitive=data.logs.filter(l=>['revoke','account','export','settings'].includes(l.event_type)&&recent(l.created_at));
     const cards=[['在线会话',active,'最近 90 秒内有心跳'],['新设备提醒',alerts.length,'尚未确认的浏览器环境'],['近期登录失败',failures.length,'最近 24 小时，已载入记录'],['近期敏感操作',sensitive.length,'最近 24 小时，已载入记录']];
@@ -67,7 +68,7 @@
     try{
       if(action.startsWith('access_')){b.disabled=true;await window.CSecurityAccess.handle(action,id,{data:data.access,api,confirmAction,toast,refresh});return;}
       if(action==='export'){b.disabled=true;await exportLogs();return;}
-      if(action==='detail'){const s=data.sessions.find(s=>s.id===id);if(!s)return;confirmed=await confirmAction('设备详情',`${s.name}；${device(s.userAgent)}；出口 IP：${s.ip||'未取得'}；登录：${date(s.createdAt)}；最近操作：${date(s.lastActivityAt)}。完整请求信息：${s.userAgent||'未取得'}`,s.remark);if(!confirmed)return;payload={session_id:id,remark:confirmed.remark};await api.authorized('remark',payload);toast('设备备注已保存');await refresh();return;}
+      if(action==='detail'){const s=data.sessions.find(s=>s.id===id);if(!s)return;confirmed=await confirmAction('设备详情',`${s.name}；${device(s.userAgent)}；出口 IP：${s.ip||'未取得'}；登录：${date(s.createdAt)}；最近操作：${date(s.lastActivityAt)}。完整请求信息：${s.userAgent||'未取得'}`,s.remark);if(!confirmed)return;payload={session_id:id,remark:confirmed.remark};await api.authorized('remark',payload);let synced=true;try{if(window.CSecurityAccess)await window.CSecurityAccess.syncRemark(api,id);}catch{synced=false;}toast(synced?'设备备注和关联 IP 显示已更新':'设备备注已保存，关联显示同步暂不可用，请稍后刷新');await refresh();return;}
       if(action==='acknowledge'){payload={event_id:id};}
       else if(action==='revoke'){const s=data.sessions.find(s=>s.id===id);confirmed=await confirmAction('退出指定会话',`结束 ${s?.name||''} 的这个会话。${s?.current?'这会退出你当前的安全中心登录。':'同账号其他设备不受影响。'}`);payload={session_id:id};}
       else if(action==='revoke_others'){confirmed=await confirmAction('退出其他全部会话','保留当前安全中心登录，结束所有已记录的其他后台会话。客户提交资料不受影响。');}
