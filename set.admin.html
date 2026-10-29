@@ -8,8 +8,10 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src https://ijzywhrnhvldkjdwfdyy.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>C 项目安全中心</title>
   <link rel="stylesheet" href="security.center.css">
+  <link rel="stylesheet" href="security.access.css">
   <script defer src="security.config.js"></script>
   <script defer src="admin-security.js"></script>
+  <script defer src="security.access.js"></script>
   <script defer src="security.center.js"></script>
 </head>
 <body>
@@ -36,6 +38,8 @@
         <button class="nav-item" data-view="devices">登录设备</button>
         <button class="nav-item" data-view="sessions">会话管理</button>
         <button class="nav-item" data-view="accounts">账号权限</button>
+        <button class="nav-item" data-view="ip-allowlist">IP 白名单</button>
+        <button class="nav-item" data-view="device-approval">设备批准</button>
         <button class="nav-item" data-view="logs">安全日志</button>
         <button class="nav-item" data-view="settings">安全设置</button>
       </nav>
@@ -55,5 +59,8 @@
     <form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-description"></p><label id="remark-label" class="device-remark" hidden>设备备注<input id="remark-input" maxlength="50"></label><div class="dialog-actions"><button value="cancel" class="secondary">取消</button><button value="confirm" class="primary">确认</button></div></form>
   </dialog>
   <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="access-editor" class="confirm-dialog access-editor" aria-labelledby="access-editor-title">
+    <form id="access-editor-form"><h2 id="access-editor-title"></h2><p id="access-editor-description"></p><label id="access-address-label" for="access-address">IP / 网段</label><input id="access-address" maxlength="100" autocomplete="off" placeholder="IPv4、IPv6 或 CIDR 网段"><label for="access-note">备注</label><input id="access-note" maxlength="80" autocomplete="off"><label id="access-enabled-label" class="access-checkbox"><input id="access-enabled" type="checkbox">保存为启用状态（尚未执行访问拦截）</label><p id="access-edit-error" class="error-message" role="alert" hidden></p><div class="dialog-actions"><button id="access-edit-cancel" type="button" class="secondary">取消</button><button id="access-edit-save" type="submit" class="primary">保存登记</button></div></form>
+  </dialog>
 </body>
 </html>
