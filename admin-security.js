@@ -19,7 +19,7 @@
   function remember(kind,slug,data){current={kind,slug,token:data.token,sessionId:data.session_id};try{storage(kind).setItem(key(kind,slug),JSON.stringify(current));}catch{}startHeartbeat();}
   function clear(){if(current){try{storage(current.kind).removeItem(key(current.kind,current.slug));}catch{}}current=null;clearInterval(timer);timer=null;}
   async function ended(){if(ending)return;ending=true;clear();location.reload();}
-  function startHeartbeat(){clearInterval(timer);timer=setInterval(async()=>{if(!current)return;const activity=lastInput>lastSentInput;try{await call('heartbeat',{token:current.token,active:activity});if(activity)lastSentInput=lastInput;}catch(error){if(error.code==='session_ended'||error.code==='account_disabled')ended();}},25000);}
+  function startHeartbeat(){clearInterval(timer);timer=setInterval(async()=>{if(!current)return;const activity=lastInput>lastSentInput;try{await call('heartbeat',{token:current.token,active:activity});if(current.kind==='master'&&window.CMasterAccess)await window.CMasterAccess.pulse();if(activity)lastSentInput=lastInput;}catch(error){if(['session_ended','account_disabled','device_pending','device_revoked','device_mismatch','ip_disabled'].includes(error.code))ended();}},25000);}
   async function restore(kind,slug=''){
     let saved;try{saved=JSON.parse(storage(kind).getItem(key(kind,slug)));}catch{}
     if(!saved?.token||saved.kind!==kind)return null;
@@ -32,10 +32,11 @@
       const auth=await client.auth.setSession(result.auth_session);
       if(auth.error){try{await call('logout',{token:result.token});}catch{}return auth;}
       remember('master','',result);if(previous&&previous!==result.token){try{await call('logout',{token:previous});}catch{}}
+      if(window.CMasterAccess)await window.CMasterAccess.attach(client);
       return auth;
     }catch(error){return {data:{user:null,session:null},error};}
   }
-  async function masterRestore(client){try{const token=await restore('master');if(token)return true;await client.auth.signOut({scope:'local'});return false;}catch{return false;}}
+  async function masterRestore(client){try{const token=await restore('master');if(token){if(window.CMasterAccess)await window.CMasterAccess.attach(client);return true;}await client.auth.signOut({scope:'local'});return false;}catch{return false;}}
   async function pageLogin(slug,password){try{const result=await call('login',{kind:'page',slug,password});remember('page',slug,result);return {data:result.token,error:null};}catch(error){return {data:null,error};}}
   async function securityLogin(username,password){const result=await call('login',{kind:'security',username,password});remember('security','',result);return result;}
   async function authorized(action,payload={}){if(!current?.token)throw new Error('请先登录。');try{return await call(action,{...payload,token:current.token});}catch(error){if(error.code==='session_ended')ended();throw error;}}

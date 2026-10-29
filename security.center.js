@@ -68,7 +68,7 @@
     const b=e.target.closest('[data-action]');if(!b)return;const {action,id}=b.dataset;let payload={},confirmed;
     try{
       if(action==='ip_label'){const record=window.CSecurityAccess.ipLabel(id);if(!record)return;confirmed=await confirmAction('固定 IP 备注',`为 ${record.address} 设置固定显示名称。同一 IP 在各个安全管理界面显示相同备注，设备换 IP 或改名不会带走此备注。共用 VPN 出口不代表同一台电脑。此操作不改变任何访问权限；留空可清除固定备注。`,record.label,'IP 备注');if(!confirmed)return;b.disabled=true;await window.CSecurityAccess.saveIpLabel(api,record.address,confirmed.remark.trim(),record.revision);toast('固定 IP 备注已保存，访问权限未改变');await refresh();return;}
-      if(action.startsWith('access_')){b.disabled=true;await window.CSecurityAccess.handle(action,id,{data:data.access,api,confirmAction,toast,refresh});return;}
+      if(action.startsWith('access_')||action.startsWith('gate_')){b.disabled=true;await window.CSecurityAccess.handle(action,id,{data:data.access,api,confirmAction,toast,refresh});return;}
       if(action==='export'){b.disabled=true;await exportLogs();return;}
       if(action==='detail'){const s=data.sessions.find(s=>s.id===id);if(!s)return;confirmed=await confirmAction('设备详情',`${s.name}；${device(s.userAgent)}；出口 IP：${s.ip||'未取得'}；固定 IP 备注：${ipNote(s.ip)||'未设置'}；登录：${date(s.createdAt)}；最近操作：${date(s.lastActivityAt)}。完整请求信息：${s.userAgent||'未取得'}`,s.remark);if(!confirmed)return;payload={session_id:id,remark:confirmed.remark};await api.authorized('remark',payload);let synced=true;try{if(window.CSecurityAccess)await window.CSecurityAccess.syncRemark(api,id);}catch{synced=false;}toast(synced?'设备备注和关联 IP 显示已更新':'设备备注已保存，关联显示同步暂不可用，请稍后刷新');await refresh();return;}
       if(action==='acknowledge'){payload={event_id:id};}

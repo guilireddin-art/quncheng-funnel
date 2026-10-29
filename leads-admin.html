@@ -143,7 +143,8 @@
     }
   </style>
   <script src="security.config.js"></script>
-  <script src="admin-security.js"></script>
+  <script src="master-access.js?v=20261030-gate1"></script>
+  <script src="admin-security.js?v=20261030-gate1"></script>
 </head>
 <body>
   <header>
@@ -271,7 +272,7 @@
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_6aY1-VEvimuV1K4FzURO2Q_inVt-ZKL';
     const ADMIN_LOGIN_USERNAME = 'admin';
     const ADMIN_LOGIN_EMAIL = 'allanfetzer379@gmail.com';
-    const client = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
+    const client = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {global:{fetch:CMasterAccess.fetch}}) : null;
     const statusLabels = {
       new: '新客戶',
       contacted: '已聯繫',
