@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id), api=window.CSecurity;
   const titles={overview:'安全概览',devices:'登录设备',sessions:'会话管理',accounts:'账号权限','ip-allowlist':'IP 白名单','device-approval':'设备批准',logs:'安全日志',settings:'安全设置'};
-  const descriptions={overview:'查看真实登录活动、新设备提醒和近期敏感操作。',devices:'查看投手、总后台与安全中心的登录设备。',sessions:'结束指定设备、其他设备或某个账号的全部会话。',accounts:'停用后台登录权限，不改变落地页收单状态。','ip-allowlist':'保存总后台 IP 名单，当前仅管理，尚未启用访问拦截。','device-approval':'总后台浏览器审批登记，当前不改变现有登录权限。',logs:'服务器记录的登录、安全操作和导出记录。',settings:'管理登录限速、会话时限和新设备提醒。'};
+  const descriptions={overview:'查看真实登录活动、新设备提醒和近期敏感操作。',devices:'查看投手、总后台与安全中心的登录设备。',sessions:'结束指定设备、其他设备或某个账号的全部会话。',accounts:'停用后台登录权限，不改变落地页收单状态。','ip-allowlist':'管理总后台 IP 名单与访问控制，是否拦截以服务器保护状态为准。','device-approval':'管理总后台浏览器审批、凭证接入及访问控制。',logs:'服务器记录的登录、安全操作和导出记录。',settings:'管理登录限速、会话时限和新设备提醒。'};
   const statuses={active:'活跃会话',idle:'暂时闲置',offline:'暂无心跳',unknown:'历史会话 · 状态未知',revoked:'已退出',expired:'已超时',disabled:'账号已停用'};
   const events={login_success:'登录成功',login_failed:'登录失败',logout:'退出登录',new_device:'新设备提醒',revoke:'结束会话',account:'账号权限',export:'导出记录',settings:'安全设置',ip_management:'IP 名单管理',device_review:'设备审批登记',device_note_sync:'设备备注同步',ip_label:'固定 IP 备注'};
   const accessView=()=>['ip-allowlist','device-approval'].includes(view);
