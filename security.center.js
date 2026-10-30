@@ -66,8 +66,20 @@
   function settings(){const s=data.settings,option=(name,values,current,unit)=>`<select name="${name}" aria-label="${name}">${values.map(v=>`<option value="${v}" ${v===current?'selected':''}>${v}${unit}</option>`).join('')}</select>`;return `<form id="settings-form" class="panel"><div class="panel-header"><h2>安全设置</h2></div><div class="settings-body"><div class="setting-row"><div><h3>连续失败次数</h3><p>同账号达到阈值后暂时禁止登录。</p></div>${option('attempts',Array.from({length:18},(_,i)=>i+3),s.attempts,' 次')}</div><div class="setting-row"><div><h3>失败统计时间</h3><p>统计这段时间内的连续登录失败。</p></div>${option('window',[5,10,30],s.window,' 分钟')}</div><div class="setting-row"><div><h3>暂时锁定时间</h3><p>达到失败次数后的等待时间。</p></div>${option('lock',[5,15,30,60],s.lock,' 分钟')}</div><div class="setting-row"><div><h3>闲置超时</h3><p>超过时限没有页面操作，需要重新登录。</p></div>${option('idle',[15,30,60,120],s.idle,' 分钟')}</div><div class="setting-row"><div><h3>最长登录时间</h3><p>修改后适用于新登录的会话。</p></div>${option('lifetime',[4,8,12,24],s.lifetime,' 小时')}</div><div class="setting-row"><div><h3>新设备提醒</h3><p>识别新浏览器环境，不获取真实硬件身份。</p></div><label class="switch"><input name="newDeviceAlerts" type="checkbox" aria-label="新设备提醒" ${s.newDeviceAlerts?'checked':''}></label></div></div><div class="settings-footer"><span>设置由服务器保存并执行</span><button class="primary" type="submit">保存设置</button></div></form>`;}
   function render(){if(!data)return;$('title').textContent=titles[view];$('subtitle').textContent=descriptions[view];document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false');});$('content').innerHTML=accessView()?window.CSecurityAccess.render(view,data.access):({overview,devices,sessions,accounts,logs,settings}[view])();}
   async function refresh(quiet=false){
-    if(fetching)return;const version=epoch,requestedView=view;fetching=true;$('refresh').disabled=true;
-    try{if(accessView()&&data){const result=await window.CSecurityAccess.load(api,requestedView);if(version!==epoch)return;data={...data,access:result.data,server_time:result.data.server_time};}else{const result=await api.authorized('dashboard');if(version!==epoch)return;data=result.data;if(accessView()){const result=await window.CSecurityAccess.load(api,view);if(version!==epoch)return;data.access=result.data;}}let labelError=null;try{await window.CSecurityAccess.loadLabels(api);}catch(error){labelError=error;}if(version!==epoch)return;$('connection').textContent=labelError?'设备数据已连接 · IP 备注暂不可用':'已连接服务器';$('updated').textContent='更新于 '+date(data.server_time);$('service-error').hidden=!labelError;if(labelError)showError(labelError);if(!quiet||view!=='settings')render();}
+    if(fetching)return;const version=epoch,requestedView=view,wantsAccess=accessView();fetching=true;$('refresh').disabled=true;
+    try{
+      // Independent reads share one refresh; all writes still use their existing checks.
+      const labels=window.CSecurityAccess.loadLabels(api).then(()=>null,error=>error);
+      const load=async()=>{
+        if(wantsAccess&&data){const result=await window.CSecurityAccess.load(api,requestedView);return {...data,access:result.data,server_time:result.data.server_time};}
+        const result=await api.authorized('dashboard'),next=result.data;
+        if(wantsAccess){const access=await window.CSecurityAccess.load(api,requestedView);next.access=access.data;next.server_time=access.data.server_time;}
+        return next;
+      };
+      const [next,labelError]=await Promise.all([load(),labels]);
+      if(version!==epoch)return;data=next;
+      $('connection').textContent=labelError?'设备数据已连接 · IP 备注暂不可用':'已连接服务器';$('updated').textContent='更新于 '+date(data.server_time);$('service-error').hidden=!labelError;if(labelError)showError(labelError);if(!quiet||view!=='settings')render();
+    }
     catch(error){if(version===epoch){showError(error);$('connection').textContent='连接暂不可用';}}
     finally{fetching=false;$('refresh').disabled=false;if(version===epoch&&requestedView!==view&&accessView())refresh(true);}
   }
