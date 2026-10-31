@@ -10,6 +10,9 @@
   const roleName=a=>a?.kind==='master'?'总后台':a?.kind==='security'?'安全中心':a?.kind==='page'?'投手后台':'后台账号';
   const events={login_success:'登录成功',login_failed:'登录失败',logout:'退出登录',new_device:'新设备提醒',revoke:'结束会话',account:'账号权限',export:'导出记录',settings:'安全设置',ip_management:'IP 名单管理',device_review:'设备审批登记',device_note_sync:'设备备注同步',ip_label:'固定 IP 备注'};
   descriptions['blocked-ips']='查看总后台被拒绝的访问，核对后将指定出口 IP 加入白名单；不会自动批准设备。';
+  titles['landing-protection']='落地页防护';
+  descriptions['landing-protection']='按域名独立管理访问限制；不改变总后台、投手后台及订单权限。';
+  const landingView=()=>view==='landing-protection';
   const accessView=()=>['ip-allowlist','device-approval','blocked-ips'].includes(view);
   let data=null,view=titles[location.hash.slice(1)]?location.hash.slice(1):'overview',search='',status='',account='',timer=null,epoch=0,fetching=false,toastTimer,devicePage=1,devicePageSize=20,deviceScope='current';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -64,10 +67,16 @@
   function accounts(){return '<div class="scope-note">停用只影响后台访问并结束该账号会话，不修改 Page 公司名、落地页、订单或收单开关。重新启用后需要再次登录。</div><section class="panel">'+table(['投手 / 账号','可访问 Page','后台权限','操作'],data.accounts.map(a=>`<tr><td>${esc(a.name)}<small class="account-sub">${esc(a.username)}</small></td><td>${a.pages.map(tag).join('')}</td><td><span class="badge ${a.enabled?'active':'disabled'}">${a.enabled?'已启用':'已停用'}</span></td><td class="row-actions">${a.kind==='security'?'独立管理账号':button('account_toggle',a.id,a.enabled?'停用后台账号':'重新启用',a.enabled?'red':'')}</td></tr>`))+'</section>';}
   function logs(){const logs=data.logs.filter(l=>(!account||l.account_key===account)&&(!search||[l.actor,l.detail,l.ip,ipNote(l.ip),events[l.event_type]].join(' ').toLowerCase().includes(search.toLowerCase())));return `<section class="panel"><div class="panel-header"><h2>安全日志</h2>${button('export','','导出当前日志','secondary small')}</div>${filters('logs')}${logsTable(logs)}<div class="table-footer">最近 ${data.logs.length} 条服务器记录；不含接入前未记录的 Page 活动。</div></section>`;}
   function settings(){const s=data.settings,option=(name,values,current,unit)=>`<select name="${name}" aria-label="${name}">${values.map(v=>`<option value="${v}" ${v===current?'selected':''}>${v}${unit}</option>`).join('')}</select>`;return `<form id="settings-form" class="panel"><div class="panel-header"><h2>安全设置</h2></div><div class="settings-body"><div class="setting-row"><div><h3>连续失败次数</h3><p>同账号达到阈值后暂时禁止登录。</p></div>${option('attempts',Array.from({length:18},(_,i)=>i+3),s.attempts,' 次')}</div><div class="setting-row"><div><h3>失败统计时间</h3><p>统计这段时间内的连续登录失败。</p></div>${option('window',[5,10,30],s.window,' 分钟')}</div><div class="setting-row"><div><h3>暂时锁定时间</h3><p>达到失败次数后的等待时间。</p></div>${option('lock',[5,15,30,60],s.lock,' 分钟')}</div><div class="setting-row"><div><h3>闲置超时</h3><p>超过时限没有页面操作，需要重新登录。</p></div>${option('idle',[15,30,60,120],s.idle,' 分钟')}</div><div class="setting-row"><div><h3>最长登录时间</h3><p>修改后适用于新登录的会话。</p></div>${option('lifetime',[4,8,12,24],s.lifetime,' 小时')}</div><div class="setting-row"><div><h3>新设备提醒</h3><p>识别新浏览器环境，不获取真实硬件身份。</p></div><label class="switch"><input name="newDeviceAlerts" type="checkbox" aria-label="新设备提醒" ${s.newDeviceAlerts?'checked':''}></label></div></div><div class="settings-footer"><span>设置由服务器保存并执行</span><button class="primary" type="submit">保存设置</button></div></form>`;}
-  function render(){if(!data)return;$('title').textContent=titles[view];$('subtitle').textContent=descriptions[view];document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false');});$('content').innerHTML=accessView()?window.CSecurityAccess.render(view,data.access):({overview,devices,sessions,accounts,logs,settings}[view])();}
+  function render(){if(!data)return;$('title').textContent=titles[view];$('subtitle').textContent=descriptions[view];document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false');});$('content').innerHTML=landingView()?window.CSecurityLanding.render(data.landing):accessView()?window.CSecurityAccess.render(view,data.access):({overview,devices,sessions,accounts,logs,settings}[view])();}
   async function refresh(quiet=false){
-    if(fetching)return;const version=epoch,requestedView=view,wantsAccess=accessView();fetching=true;$('refresh').disabled=true;
+    if(fetching)return;const version=epoch,requestedView=view,wantsAccess=accessView(),wantsLanding=landingView();fetching=true;$('refresh').disabled=true;
     try{
+      if(wantsLanding){
+        const result=await window.CSecurityLanding.load(api);
+        if(version!==epoch)return;
+        data={...(data||{}),landing:result.data,server_time:result.data.server_time};
+        $('connection').textContent='已连接服务器';$('updated').textContent='更新于 '+date(data.server_time);$('service-error').hidden=true;if(requestedView===view)render();return;
+      }
       // Independent reads share one refresh; all writes still use their existing checks.
       const labels=window.CSecurityAccess.loadLabels(api).then(()=>null,error=>error);
       const load=async()=>{
@@ -81,7 +90,7 @@
       $('connection').textContent=labelError?'设备数据已连接 · IP 备注暂不可用':'已连接服务器';$('updated').textContent='更新于 '+date(data.server_time);$('service-error').hidden=!labelError;if(labelError)showError(labelError);if(!quiet||view!=='settings')render();
     }
     catch(error){if(version===epoch){showError(error);$('connection').textContent='连接暂不可用';}}
-    finally{fetching=false;$('refresh').disabled=false;if(version===epoch&&requestedView!==view&&accessView())refresh(true);}
+    finally{fetching=false;$('refresh').disabled=false;if(version===epoch&&requestedView!==view)refresh(true);}
   }
   function enter(){epoch++;$('login').hidden=true;$('app').hidden=false;refresh();clearInterval(timer);timer=setInterval(()=>refresh(true),30000);}
   async function leave(){epoch++;clearInterval(timer);await api.logout();data=null;location.reload();}
@@ -89,10 +98,10 @@
   function csvCell(value){let s=String(value??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}
   async function exportLogs(){const rows=data.logs.filter(l=>(!account||l.account_key===account)&&(!search||[l.actor,l.detail,l.ip,ipNote(l.ip),events[l.event_type]].join(' ').toLowerCase().includes(search.toLowerCase())));await api.authorized('export',{count:rows.length});const csv=[['时间','账号','事件','内容','网络出口 IP','固定 IP 备注'],...rows.map(l=>[date(l.created_at),l.actor,events[l.event_type]||l.event_type,l.detail,l.ip,ipNote(l.ip)])].map(row=>row.map(csvCell).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='security-logs-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('安全日志已导出');}
   $('login-form').addEventListener('submit',async event=>{event.preventDefault();const submit=event.submitter;submit.disabled=true;$('login-error').hidden=true;const password=$('password').value;$('password').value='';try{await api.securityLogin($('username').value.trim(),password);enter();}catch(error){$('login-error').textContent=error.message;$('login-error').hidden=false;}finally{submit.disabled=false;}});
-  function navigate(target){if(!titles[target])return;view=target;search='';status='';account='';devicePage=1;deviceScope='current';window.CSecurityAccess?.reset();history.replaceState(null,'','#'+view);render();if(accessView())refresh();}
+  function navigate(target){if(!titles[target])return;view=target;search='';status='';account='';devicePage=1;deviceScope='current';window.CSecurityAccess?.reset();history.replaceState(null,'','#'+view);if(landingView()||data?.accounts)render();if(accessView()||landingView()||!data?.accounts)refresh();}
   document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)navigate(b.dataset.view);});
   $('refresh').addEventListener('click',()=>refresh());$('logout').addEventListener('click',leave);$('mobile-logout').addEventListener('click',leave);
-  $('content').addEventListener('change',e=>{if(window.CSecurityAccess?.filterEvent(e)){render();return;}if(e.target.id==='device-page-size'){const size=Number(e.target.value);if(![20,50,100].includes(size))return;devicePageSize=size;devicePage=1;render();return;}if(e.target.id==='account-filter'){account=e.target.value;devicePage=1;render();}if(e.target.id==='status-filter'){status=e.target.value;devicePage=1;render();}});
+  $('content').addEventListener('change',e=>{if(landingView()&&window.CSecurityLanding.filterEvent(e)){render();return;}if(window.CSecurityAccess?.filterEvent(e)){render();return;}if(e.target.id==='device-page-size'){const size=Number(e.target.value);if(![20,50,100].includes(size))return;devicePageSize=size;devicePage=1;render();return;}if(e.target.id==='account-filter'){account=e.target.value;devicePage=1;render();}if(e.target.id==='status-filter'){status=e.target.value;devicePage=1;render();}});
   $('content').addEventListener('input',e=>{if(e.target.id==='access-search'){const start=e.target.selectionStart;window.CSecurityAccess.filterEvent(e);render();$('access-search').focus();$('access-search').setSelectionRange(start,start);return;}if(e.target.id==='search'){search=e.target.value;devicePage=1;const start=e.target.selectionStart;render();$('search').focus();$('search').setSelectionRange(start,start);}});
   $('content').addEventListener('submit',async e=>{if(e.target.id!=='settings-form')return;e.preventDefault();const f=new FormData(e.target),settings={attempts:Number(f.get('attempts')),window:Number(f.get('window')),lock:Number(f.get('lock')),idle:Number(f.get('idle')),lifetime:Number(f.get('lifetime')),newDeviceAlerts:f.has('newDeviceAlerts')};e.submitter.disabled=true;try{await api.authorized('settings',{settings});toast('安全设置已保存');await refresh();}catch(error){showError(error);e.submitter.disabled=false;}});
   $('content').addEventListener('click',async e=>{
@@ -100,6 +109,7 @@
     if(view==='devices'&&action==='devices_scope'){if(!['current','history'].includes(id))return;deviceScope=id;devicePage=1;status='';render();return;}
     if(view==='devices'&&(action==='devices_previous'||action==='devices_next')){if(b.disabled)return;devicePage+=action==='devices_next'?1:-1;render();return;}
     try{
+      if(action.startsWith('landing_')){b.disabled=true;await window.CSecurityLanding.handle(action,id,{api,data:data.landing,confirmAction,toast,refresh,render});return;}
       if(action==='ip_label'){const record=window.CSecurityAccess.ipLabel(id);if(!record)return;confirmed=await confirmAction('固定 IP 备注',`为 ${record.address} 设置固定显示名称。同一 IP 在各个安全管理界面显示相同备注，设备换 IP 或改名不会带走此备注。共用 VPN 出口不代表同一台电脑。此操作不改变任何访问权限；留空可清除固定备注。`,record.label,'IP 备注');if(!confirmed)return;b.disabled=true;await window.CSecurityAccess.saveIpLabel(api,record.address,confirmed.remark.trim(),record.revision);toast('固定 IP 备注已保存，访问权限未改变');await refresh();return;}
       if(action.startsWith('access_')||action.startsWith('gate_')){b.disabled=true;await window.CSecurityAccess.handle(action,id,{data:data.access,api,confirmAction,toast,refresh,render,navigate});return;}
       if(action==='export'){b.disabled=true;await exportLogs();return;}

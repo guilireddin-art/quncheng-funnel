@@ -1,0 +1,15 @@
+.landing-selector{display:flex;align-items:center;gap:18px;padding:4px 22px 22px;border-bottom:1px solid var(--line)}
+.landing-selector label{color:#65758d;font-size:12px}.landing-selector select{min-width:310px;max-width:100%}
+.landing-domain-summary{padding:24px 22px 15px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+.landing-domain-summary h2{font-size:22px;margin:6px 0;color:var(--ink);overflow-wrap:anywhere}.landing-domain-summary p{font-size:12px;margin:0;color:var(--muted);overflow-wrap:anywhere}
+.landing-domain-summary .badge{white-space:nowrap}.landing-current-state{margin:0 22px 18px;padding:11px 14px;background:#f5f8fd;border-radius:6px;color:#536a88;font-size:12px}
+.landing-rule{display:flex;justify-content:space-between;align-items:center;gap:30px;padding:24px 22px;border-top:1px solid var(--line)}
+.landing-rule h3{font-size:16px;color:var(--ink);margin:0 0 7px}.landing-rule p{max-width:660px;color:#728197;font-size:12px;margin:0;line-height:1.9}
+.landing-toggle{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:9px 0;color:#64748b;font-size:12px;flex:none}
+.landing-toggle-track{width:44px;height:24px;border-radius:20px;display:block;background:#b8c3d3;padding:3px;transition:background .15s}
+.landing-toggle-track::before{content:"";display:block;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;transition:transform .15s}
+.landing-toggle[aria-checked="true"]{color:#245fcc}.landing-toggle[aria-checked="true"] .landing-toggle-track{background:#255fd5}.landing-toggle[aria-checked="true"] .landing-toggle-track::before{transform:translateX(20px)}
+.landing-footnote{padding:17px 22px;font-size:12px;color:#728197;line-height:1.9;border-top:1px solid var(--line)}
+.landing-help{margin:20px 0;color:#728197;font-size:12px;line-height:1.9}.landing-help summary{cursor:pointer;color:var(--blue)}
+.landing-management .scope-note p{margin-bottom:0;line-height:1.9}
+@media(max-width:600px){.landing-selector{display:block;padding:0 16px 18px}.landing-selector label{display:block;margin-bottom:8px}.landing-selector select{width:100%;min-width:0}.landing-domain-summary{align-items:flex-start;flex-direction:column;padding:20px 16px 14px}.landing-domain-summary h2{font-size:20px}.landing-current-state{margin:0 16px 16px}.landing-rule{padding:20px 16px;gap:16px;align-items:flex-start}.landing-rule p{font-size:11px}.landing-rule h3{font-size:15px}.landing-toggle{gap:6px;flex-direction:column;padding-top:2px}.landing-footnote{padding:16px}}
